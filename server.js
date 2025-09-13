@@ -7,6 +7,10 @@ const path = require('path');
 // Initialize Express App
 const app = express();
 
+// Track startup time for debugging
+const startTime = Date.now();
+console.log('🚀 Starting server initialization...');
+
 // Middleware
 const allowedOrigins = [
   'http://localhost:5000',
@@ -34,53 +38,102 @@ app.use(express.static('public'));
 
 // MongoDB Connection
 const MONGODB_URI = process.env.MONGODB_URI;
-
-// Debug MongoDB connection
-console.log('MongoDB URI starts with:', MONGODB_URI ? MONGODB_URI.substring(0, 20) + '...' : 'Not set');
-
-if (MONGODB_URI && !MONGODB_URI.startsWith('mongodb')) {
-  console.error('ERROR: MONGODB_URI does not start with mongodb:// or mongodb+srv://');
-}
-
 let useRealMongoDB = false;
 
-// Attempt MongoDB connection but don't block server startup
+// Debug MongoDB connection
+console.log('📦 MongoDB URI provided:', MONGODB_URI ? 'Yes' : 'No');
+if (MONGODB_URI) {
+  console.log('🔗 URI starts with:', MONGODB_URI.substring(0, 25) + '...');
+}
+
+// Health check endpoints - MUST COME FIRST for Render monitoring
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    message: 'Server is healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    startupTime: Date.now() - startTime + 'ms',
+    database: useRealMongoDB ? 'Connected' : 'Disconnected/Temporary'
+  });
+});
+
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    message: 'API is healthy',
+    database: useRealMongoDB ? 'Connected' : 'Disconnected/Temporary'
+  });
+});
+
+// Immediate response endpoint for quick health checks
+app.get('/api/ready', (req, res) => {
+  res.json({ 
+    status: 'ready', 
+    started: new Date().toISOString(),
+    responseTime: Date.now() - startTime + 'ms'
+  });
+});
+
+// Serve static pages
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/dashboard.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
+// Attempt MongoDB connection (non-blocking, after health checks)
 if (MONGODB_URI && MONGODB_URI.startsWith('mongodb')) {
-  mongoose.connect(MONGODB_URI)
-    .then(() => {
-      console.log('✅ MongoDB connected successfully');
-      useRealMongoDB = true;
-    })
-    .catch(err => {
-      console.error('❌ MongoDB connection failed:', err.message);
-      if (err.message.includes('whitelist')) {
-        console.error('\n🔒 IP WHITELIST ERROR:');
-        console.error('Your Render server IP is not whitelisted in MongoDB Atlas');
-        console.error('1. Go to MongoDB Atlas → Network Access');
-        console.error('2. Add IP Address: 0.0.0.0/0 (for development)');
-        console.error('3. Wait 1-2 minutes for changes to take effect');
-      }
-      useRealMongoDB = false;
-    });
+  console.log('🔄 Attempting MongoDB connection...');
+  
+  mongoose.connect(MONGODB_URI, {
+    serverSelectionTimeoutMS: 5000, // 5 second timeout
+    socketTimeoutMS: 45000,
+  })
+  .then(() => {
+    useRealMongoDB = true;
+    console.log('✅ MongoDB connected successfully');
+  })
+  .catch(err => {
+    console.error('❌ MongoDB connection failed:', err.message);
+    if (err.message.includes('whitelist')) {
+      console.error('\n🔒 IP WHITELIST ISSUE:');
+      console.error('1. Go to MongoDB Atlas → Network Access');
+      console.error('2. Add IP Address: 0.0.0.0/0');
+      console.error('3. Wait 2-3 minutes for changes to propagate');
+    }
+    useRealMongoDB = false;
+  });
 } else {
   console.log('ℹ️  No valid MongoDB URI found, using temporary authentication');
   useRealMongoDB = false;
 }
 
 // Handle MongoDB connection events
-mongoose.connection.on('error', err => {
-  console.error('MongoDB connection error:', err);
+mongoose.connection?.on('error', err => {
+  console.error('MongoDB connection error:', err.message);
   useRealMongoDB = false;
 });
 
-mongoose.connection.on('disconnected', () => {
+mongoose.connection?.on('disconnected', () => {
   console.log('MongoDB disconnected');
   useRealMongoDB = false;
 });
 
 // Import Route Handlers
-const authRoutes = require('./routes/auth');
-const tempAuthRoutes = require('./routes/temp-auth');
+let authRoutes, tempAuthRoutes;
+
+try {
+  authRoutes = require('./routes/auth');
+  tempAuthRoutes = require('./routes/temp-auth');
+  console.log('✅ Auth routes loaded successfully');
+} catch (err) {
+  console.error('❌ Failed to load auth routes:', err.message);
+  // Create basic fallback routes if module loading fails
+  tempAuthRoutes = require('./routes/temp-auth');
+}
 
 // Use appropriate auth routes based on connection status
 app.use('/api/auth', (req, res, next) => {
@@ -93,21 +146,13 @@ app.use('/api/auth', (req, res, next) => {
   }
 });
 
-// Health check endpoints
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    message: 'Server is running',
-    database: useRealMongoDB ? 'Connected' : 'Disconnected',
-    timestamp: new Date().toISOString()
-  });
-});
-
+// Auth status endpoint
 app.get('/api/auth/status', (req, res) => {
   res.json({
     usingMongoDB: useRealMongoDB,
     status: useRealMongoDB ? 'Using MongoDB Authentication' : 'Using Temporary Authentication',
-    database: useRealMongoDB ? 'Connected' : 'Disconnected'
+    database: useRealMongoDB ? 'Connected' : 'Disconnected',
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -117,45 +162,67 @@ app.get('/api/ip', (req, res) => {
   res.json({ 
     ip: clientIp, 
     message: 'Add this IP to MongoDB Atlas whitelist if needed',
-    headers: req.headers 
+    timestamp: new Date().toISOString()
   });
-});
-
-// Serve the main landing page
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Serve dashboard page
-app.get('/dashboard.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('Shutting down gracefully...');
-  if (mongoose.connection.readyState === 1) {
+  console.log('🛑 Shutting down gracefully...');
+  if (mongoose.connection?.readyState === 1) {
     await mongoose.connection.close();
-    console.log('MongoDB connection closed.');
+    console.log('✅ MongoDB connection closed.');
   }
   process.exit(0);
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
-  res.status(500).json({ message: 'Internal server error' });
+  console.error('❌ Unhandled error:', err);
+  res.status(500).json({ 
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+  });
 });
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).json({ message: 'Endpoint not found' });
+  res.status(404).json({ 
+    message: 'Endpoint not found',
+    path: req.path,
+    method: req.method
+  });
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`🌐 Available at: http://localhost:${PORT}`);
+// Start server
+const PORT = process.env.PORT || 10000;
+
+const server = app.listen(PORT, () => {
+  const initTime = Date.now() - startTime;
+  console.log('🎉 Server started successfully!');
+  console.log(`📍 Port: ${PORT}`);
+  console.log(`⏱️  Startup time: ${initTime}ms`);
+  console.log(`🌐 Local: http://localhost:${PORT}`);
   console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`📊 Database: ${useRealMongoDB ? 'MongoDB' : 'Temporary (in-memory)'}`);
+  console.log(`📊 Database: ${useRealMongoDB ? 'MongoDB ✅' : 'Temporary (in-memory) 🔄'}`);
+  console.log(`🕒 Started at: ${new Date().toISOString()}`);
 });
+
+// Handle server errors
+server.on('error', (err) => {
+  console.error('❌ Server failed to start:', err);
+  process.exit(1);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught Exception:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+module.exports = app;
