@@ -24,6 +24,11 @@ if (!MONGODB_URI) {
   process.exit(1);
 }
 
+app.get('/api/ip', (req, res) => {
+  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  res.json({ ip: clientIp, message: 'Add this IP to MongoDB Atlas whitelist' });
+});
+
 mongoose.connect(MONGODB_URI)
 .then(() => console.log('MongoDB connected successfully'))
 .catch(err => {
