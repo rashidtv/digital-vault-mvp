@@ -43,7 +43,7 @@ router.post('/register', async (req, res) => {
         });
 
     } catch (err) {
-        console.error(err);
+        console.error('Temp auth registration error:', err);
         res.status(500).json({ message: 'Server error during registration.' });
     }
 });
@@ -74,7 +74,7 @@ router.post('/login', async (req, res) => {
         });
 
     } catch (err) {
-        console.error(err);
+        console.error('Temp auth login error:', err);
         res.status(500).json({ message: 'Server error during login.' });
     }
 });
