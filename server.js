@@ -16,12 +16,20 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
-// Connect to MongoDB (using environment variable)
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/digital-vault-mvp';
+// Replace your mongoose.connect code with this:
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error('MONGODB_URI environment variable is not set');
+  process.exit(1);
+}
 
 mongoose.connect(MONGODB_URI)
 .then(() => console.log('MongoDB connected successfully'))
-.catch(err => console.log('MongoDB connection error:', err));
+.catch(err => {
+  console.error('MongoDB connection error:', err.message);
+  console.log('MONGODB_URI value:', MONGODB_URI ? 'Set (hidden for security)' : 'Not set');
+});
 
 // ... rest of your server.js code remains the same
 
