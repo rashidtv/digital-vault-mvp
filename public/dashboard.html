@@ -10,20 +10,52 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
             <a class="navbar-brand" href="#">SecureVault</a>
-            <button class="btn btn-outline-light" id="logoutBtn">Logout</button>
+            <div>
+                <span class="navbar-text me-3" id="authStatus">Checking authentication...</span>
+                <button class="btn btn-outline-light" id="logoutBtn">Logout</button>
+            </div>
         </div>
     </nav>
 
     <div class="container my-5">
         <h1>Welcome to Your Dashboard</h1>
-        <p id="userInfo">Loading user information...</p>
-        <div class="alert alert-info">
-            <strong>Next Step:</strong> Property grant upload and digital card generation will be implemented here.
+        <div id="userInfo" class="alert alert-info">Loading user information...</div>
+        
+        <div class="alert alert-warning" id="tempAuthWarning" style="display: none;">
+            <strong>Note:</strong> Using temporary authentication. Data will be lost when the server restarts.
+            <br>To enable permanent storage, configure MongoDB Atlas connection.
         </div>
-        <a href="/" class="btn btn-primary">Back to Home</a>
+
+        <div class="card">
+            <div class="card-header">
+                <h5>Next Features Coming Soon</h5>
+            </div>
+            <div class="card-body">
+                <ul>
+                    <li>Property grant upload with OCR</li>
+                    <li>Digital vault card generation</li>
+                    <li>Nominee sharing functionality</li>
+                    <li>Secure document storage</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="mt-3">
+            <button class="btn btn-primary" id="logoutBtnBottom">Logout & Return Home</button>
+        </div>
     </div>
 
     <script>
+        // Check authentication status first
+        fetch('/api/auth/status')
+            .then(response => response.json())
+            .then(status => {
+                document.getElementById('authStatus').textContent = status.status;
+                if (!status.usingMongoDB) {
+                    document.getElementById('tempAuthWarning').style.display = 'block';
+                }
+            });
+
         // Check if user is logged in
         const token = localStorage.getItem('token');
         if (!token) {
@@ -37,24 +69,44 @@
             }
         })
         .then(response => {
-            if (!response.ok) throw new Error('Not authenticated');
+            if (!response.ok) {
+                // Token is invalid, clear storage and redirect
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                throw new Error('Not authenticated');
+            }
             return response.json();
         })
         .then(user => {
-            document.getElementById('userInfo').textContent = 
-                `Logged in as: ${user.username} (${user.email}) - Subscribed: ${user.isSubscribed ? 'Yes' : 'No'}`;
+            document.getElementById('userInfo').innerHTML = 
+                `<strong>Logged in as:</strong> ${user.username} (${user.email})<br>
+                 <strong>Subscription Status:</strong> ${user.isSubscribed ? 'Active' : 'Inactive'}`;
         })
         .catch(err => {
             console.error('Auth check failed:', err);
-            localStorage.removeItem('token');
             window.location.href = '/';
         });
 
         // Logout functionality
-        document.getElementById('logoutBtn').addEventListener('click', () => {
+        function handleLogout() {
+            // Optional: Call logout API
+            fetch('/api/auth/logout', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            }).catch(err => console.error('Logout API error:', err));
+            
+            // Clear local storage
             localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            
+            // Redirect to home
             window.location.href = '/';
-        });
+        }
+
+        document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+        document.getElementById('logoutBtnBottom').addEventListener('click', handleLogout);
     </script>
 </body>
 </html>

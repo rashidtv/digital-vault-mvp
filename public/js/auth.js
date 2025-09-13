@@ -163,9 +163,12 @@ registerForm.addEventListener('submit', async (e) => {
 });
 
 // Check if user is already logged in
+// Check if user is already logged in (at the bottom of auth.js)
 document.addEventListener('DOMContentLoaded', () => {
     const token = localStorage.getItem('token');
-    if (token) {
+    const user = localStorage.getItem('user');
+    
+    if (token && user) {
         // Verify token is still valid
         fetch(`${API_BASE}/auth/user`, {
             headers: {

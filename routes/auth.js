@@ -134,9 +134,20 @@ router.get('/user', auth, async (req, res) => {
 
 // @route   POST /api/auth/logout
 // @desc    Logout user (client-side token removal)
-router.post('/logout', (req, res) => {
-    // JWT is stateless, so logout is handled client-side by removing the token
-    res.json({ message: 'Logged out successfully.' });
+// @route   POST /api/auth/logout
+// @desc    Logout user (optional server-side cleanup)
+router.post('/logout', auth, async (req, res) => {
+    try {
+        // Optional: Add token to blacklist if you want to implement token invalidation
+        // For now, we'll just acknowledge the logout
+        res.json({ 
+            message: 'Logged out successfully.',
+            timestamp: new Date().toISOString()
+        });
+    } catch (err) {
+        console.error('Logout error:', err);
+        res.status(500).json({ message: 'Server error during logout.' });
+    }
 });
 
 module.exports = router;
