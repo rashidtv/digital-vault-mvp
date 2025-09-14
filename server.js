@@ -12,6 +12,76 @@ const app = express();
 const startTime = Date.now();
 console.log('🚀 Starting server initialization...');
 
+const multer = require('multer');
+const path = require('path');
+
+// Configure multer for file uploads
+const storage = multer.memoryStorage(); // Use memory storage for now
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|pdf|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+
+    if (mimetype && extname) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only images and PDF files are allowed'), false);
+    }
+  }
+});
+
+// Real upload endpoint with validation
+app.post('/api/vault/upload', upload.single('document'), (req, res) => {
+  try {
+    console.log('Upload endpoint hit');
+    
+    if (!req.file) {
+      console.log('No file uploaded');
+      return res.status(400).json({ 
+        message: 'No file uploaded. Please select a file.',
+        status: 'error'
+      });
+    }
+
+    console.log('File received:', {
+      originalName: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype
+    });
+
+    // Simulate processing (will replace with real processing later)
+    res.json({ 
+      message: 'File uploaded successfully! OCR processing started.',
+      status: 'success',
+      file: {
+        name: req.file.originalname,
+        size: req.file.size,
+        type: req.file.mimetype
+      }
+    });
+
+  } catch (error) {
+  console.error('❌ Upload error:', error);
+  
+  if (error.message.includes('502') || error.message.includes('Bad Gateway')) {
+    showUploadStatus('🚨 Server is temporarily unavailable. Please try again in a few minutes.', 'warning');
+  } else if (error.message.includes('Unexpected token')) {
+    showUploadStatus('🚨 Server returned invalid response. Please try again.', 'warning');
+  } else {
+    showUploadStatus('❌ Error during upload: ' + error.message, 'danger');
+  }
+} finally {
+  setUploadLoading(false);
+  console.log('Upload process completed');
+}
+});
+
 // Middleware
 const allowedOrigins = [
   'http://localhost:5000',

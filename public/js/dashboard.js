@@ -92,23 +92,26 @@ uploadForm.addEventListener('submit', async (e) => {
             throw new Error('Invalid JSON response: ' + text);
         }
 
-        if (response.ok) {
-            console.log('✅ Upload successful');
-            showUploadStatus('✅ File uploaded successfully! OCR processing started.', 'success');
-            resetUploadForm(); // Clear the form
-            loadVaultItems(); // Refresh items list
-        } else {
-            console.log('❌ Upload failed:', data.message);
-            showUploadStatus('❌ ' + (data.message || 'Upload failed'), 'danger');
-        }
-    } catch (error) {
-        console.error('❌ Upload error:', error);
-        console.error('Error details:', error.message);
-        showUploadStatus('❌ Error during upload: ' + error.message, 'danger');
-    } finally {
-        setUploadLoading(false);
-        console.log('Upload process completed');
-    }
+// In your upload function, replace the success handling:
+if (response.ok) {
+  const data = await response.json();
+  console.log('Response data:', data);
+  
+  // Check if the response actually indicates success
+  if (data.status === 'success') {
+    console.log('✅ Upload successful');
+    showUploadStatus('✅ ' + data.message, 'success');
+    resetUploadForm();
+    loadVaultItems();
+  } else {
+    console.log('❌ Upload failed from server:', data.message);
+    showUploadStatus('❌ ' + (data.message || 'Upload failed'), 'danger');
+  }
+} else {
+  console.log('❌ Upload failed with status:', response.status);
+  const errorText = await response.text();
+  showUploadStatus('❌ Upload failed: Server error ' + response.status, 'danger');
+}
 });
 }
 
