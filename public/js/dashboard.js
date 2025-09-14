@@ -1,3 +1,4 @@
+console.log('Dashboard JS loaded');
 const API_BASE = '/api';
 
 // DOM Elements
@@ -12,30 +13,48 @@ if (!token) {
 }
 
 // Handle file upload
-uploadForm.addEventListener('submit', async (e) => {
+// Add this at the top of your dashboard.js
+console.log('Dashboard JS loaded');
+
+// Modify the upload event listener to add debugging:
+document.getElementById('uploadForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    console.log('Upload form submitted');
     
     const fileInput = document.getElementById('document');
     const file = fileInput.files[0];
+    console.log('Selected file:', file);
     
     if (!file) {
+        console.log('No file selected');
         showUploadStatus('Please select a file', 'danger');
         return;
     }
 
+    console.log('File details:', {
+        name: file.name,
+        size: file.size,
+        type: file.type
+    });
+
     // Validate file size (10MB)
     if (file.size > 10 * 1024 * 1024) {
+        console.log('File too large:', file.size);
         showUploadStatus('File size must be less than 10MB', 'danger');
         return;
     }
 
     const formData = new FormData();
     formData.append('document', file);
+    console.log('FormData created');
 
-    showUploadStatus('Uploading...', 'info');
+    // Show loading state
+    setUploadLoading(true);
+    showUploadStatus('Uploading and processing document...', 'info');
 
     try {
-        const response = await fetch(`${API_BASE}/vault/upload`, {
+        console.log('Sending upload request...');
+        const response = await fetch('/api/vault/upload', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`
@@ -43,18 +62,23 @@ uploadForm.addEventListener('submit', async (e) => {
             body: formData
         });
 
+        console.log('Response status:', response.status);
         const data = await response.json();
+        console.log('Response data:', data);
 
         if (response.ok) {
-            showUploadStatus('File uploaded successfully! OCR processing started.', 'success');
+            showUploadStatus('✅ File uploaded successfully! OCR processing started.', 'success');
             fileInput.value = ''; // Clear file input
+            document.getElementById('fileInfo').style.display = 'none';
             loadVaultItems(); // Refresh items list
         } else {
-            showUploadStatus(data.message || 'Upload failed', 'danger');
+            showUploadStatus('❌ ' + (data.message || 'Upload failed'), 'danger');
         }
     } catch (error) {
         console.error('Upload error:', error);
-        showUploadStatus('Network error during upload', 'danger');
+        showUploadStatus('❌ Network error during upload', 'danger');
+    } finally {
+        setUploadLoading(false);
     }
 });
 
