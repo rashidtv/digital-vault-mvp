@@ -3,6 +3,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 
 // Initialize Express App
 const app = express();
@@ -19,13 +20,17 @@ const allowedOrigins = [
 ];
 
 app.use(cors({
-    origin: [
-        'http://localhost:5000',
-        'https://digital-vault-mvp.onrender.com'
-    ],
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, Postman)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  credentials: true
 }));
 
 app.use(express.json());
@@ -40,6 +45,19 @@ let useRealMongoDB = false;
 console.log('📦 MongoDB URI provided:', MONGODB_URI ? 'Yes' : 'No');
 if (MONGODB_URI) {
   console.log('🔗 URI starts with:', MONGODB_URI.substring(0, 25) + '...');
+}
+
+// Ensure uploads directory exists
+const uploadsDir = './uploads';
+const cardsDir = './cards';
+
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log('Created uploads directory');
+}
+if (!fs.existsSync(cardsDir)) {
+  fs.mkdirSync(cardsDir, { recursive: true });
+  console.log('Created cards directory');
 }
 
 // Health check endpoints - MUST COME FIRST for Render monitoring
@@ -84,62 +102,47 @@ app.get('/dashboard.html', (req, res) => {
 if (MONGODB_URI && MONGODB_URI.startsWith('mongodb')) {
   console.log('🔄 Attempting MongoDB connection...');
   
-// MongoDB connection with better error handling
-mongoose.connect(MONGODB_URI)
-  .then(() => {
-    console.log('✅ MongoDB connected successfully');
-    useRealMongoDB = true;
-  })
-  .catch(err => {
-    console.error('❌ MongoDB connection failed:', err.message);
-    useRealMongoDB = false;
-  });
-
-// Don't let MongoDB errors crash the server
-mongoose.connection.on('error', err => {
-    console.error('MongoDB connection error:', err);
-});
-  .then(() => {
-    useRealMongoDB = true;
-    console.log('✅ MongoDB connected successfully');
-  })
-  .catch(err => {
-    console.error('❌ MongoDB connection failed:', err.message);
-    if (err.message.includes('whitelist')) {
-      console.error('\n🔒 IP WHITELIST ISSUE:');
-      console.error('1. Go to MongoDB Atlas → Network Access');
-      console.error('2. Add IP Address: 0.0.0.0/0');
-      console.error('3. Wait 2-3 minutes for changes to propagate');
-    }
-    useRealMongoDB = false;
-  });
+  mongoose.connect(MONGODB_URI)
+    .then(() => {
+      useRealMongoDB = true;
+      console.log('✅ MongoDB connected successfully');
+    })
+    .catch(err => {
+      console.error('❌ MongoDB connection failed:', err.message);
+      if (err.message.includes('whitelist')) {
+        console.error('\n🔒 IP WHITELIST ISSUE:');
+        console.error('1. Go to MongoDB Atlas → Network Access');
+        console.error('2. Add IP Address: 0.0.0.0/0');
+        console.error('3. Wait 1-2 minutes for changes to take effect');
+      }
+      useRealMongoDB = false;
+    });
 } else {
   console.log('ℹ️  No valid MongoDB URI found, using temporary authentication');
   useRealMongoDB = false;
 }
 
 // Handle MongoDB connection events
-mongoose.connection?.on('error', err => {
+mongoose.connection.on('error', err => {
   console.error('MongoDB connection error:', err.message);
   useRealMongoDB = false;
 });
 
-mongoose.connection?.on('disconnected', () => {
+mongoose.connection.on('disconnected', () => {
   console.log('MongoDB disconnected');
   useRealMongoDB = false;
 });
 
 // Import Route Handlers
-let authRoutes, tempAuthRoutes;
+let authRoutes, tempAuthRoutes, vaultRoutes;
 
 try {
   authRoutes = require('./routes/auth');
   tempAuthRoutes = require('./routes/temp-auth');
-  console.log('✅ Auth routes loaded successfully');
+  vaultRoutes = require('./routes/vault');
+  console.log('✅ All routes loaded successfully');
 } catch (err) {
-  console.error('❌ Failed to load auth routes:', err.message);
-  // Create basic fallback routes if module loading fails
-  tempAuthRoutes = require('./routes/temp-auth');
+  console.error('❌ Failed to load routes:', err.message);
 }
 
 // Use appropriate auth routes based on connection status
@@ -153,6 +156,11 @@ app.use('/api/auth', (req, res, next) => {
   }
 });
 
+// Use vault routes
+app.use('/api/vault', (req, res, next) => {
+  require('./routes/vault')(req, res, next);
+});
+
 // Auth status endpoint
 app.get('/api/auth/status', (req, res) => {
   res.json({
@@ -163,24 +171,6 @@ app.get('/api/auth/status', (req, res) => {
   });
 });
 
-// Add after auth routes
-const vaultRoutes = require('./routes/vault');
-app.use('/api/vault', vaultRoutes);
-
-// Ensure uploads directory exists
-const fs = require('fs');
-const uploadsDir = './uploads';
-const cardsDir = './cards';
-
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-  console.log('Created uploads directory');
-}
-if (!fs.existsSync(cardsDir)) {
-  fs.mkdirSync(cardsDir, { recursive: true });
-  console.log('Created cards directory');
-}
-
 // Debug endpoint to check IP (for whitelisting)
 app.get('/api/ip', (req, res) => {
   const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
@@ -189,16 +179,6 @@ app.get('/api/ip', (req, res) => {
     message: 'Add this IP to MongoDB Atlas whitelist if needed',
     timestamp: new Date().toISOString()
   });
-});
-
-// Graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('🛑 Shutting down gracefully...');
-  if (mongoose.connection?.readyState === 1) {
-    await mongoose.connection.close();
-    console.log('✅ MongoDB connection closed.');
-  }
-  process.exit(0);
 });
 
 // Error handling middleware
@@ -220,10 +200,7 @@ app.use((req, res) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
-});
+const PORT = process.env.PORT || 5000;
 
 const server = app.listen(PORT, () => {
   const initTime = Date.now() - startTime;
@@ -251,6 +228,19 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason, promise) => {
   console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
   process.exit(1);
+});
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('🛑 Shutting down gracefully...');
+  if (mongoose.connection.readyState === 1) {
+    await mongoose.connection.close();
+    console.log('✅ MongoDB connection closed.');
+  }
+  server.close(() => {
+    console.log('✅ HTTP server closed.');
+    process.exit(0);
+  });
 });
 
 module.exports = app;
