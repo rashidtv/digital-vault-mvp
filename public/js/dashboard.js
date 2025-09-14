@@ -25,83 +25,172 @@ if (!dashboardToken) {
 }
 
 function initializeUploadHandler() {
-    // Handle file upload with detailed logging
-    uploadForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        console.log('📤 Upload form submitted');
-        
-        const file = fileInput.files[0];
-        console.log('Selected file:', file);
-        
-        if (!file) {
-            console.log('❌ No file selected');
-            showUploadStatus('Please select a file', 'danger');
-            return;
-        }
 
-        console.log('File details:', {
-            name: file.name,
-            size: file.size,
-            type: file.type
+// Handle file upload with proper validation
+uploadForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    console.log('📤 Upload form submitted');
+    
+    const file = fileInput.files[0];
+    console.log('Selected file:', file);
+    
+    if (!file) {
+        console.log('❌ No file selected');
+        showUploadStatus('Please select a file first', 'danger');
+        return; // Stop execution if no file
+    }
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+        console.log('❌ Invalid file type:', file.type);
+        showUploadStatus('Please select a valid file type (JPG, PNG, PDF, WEBP)', 'danger');
+        return;
+    }
+
+    console.log('File details:', {
+        name: file.name,
+        size: file.size,
+        type: file.type
+    });
+
+    // Validate file size (10MB)
+    if (file.size > 10 * 1024 * 1024) {
+        console.log('❌ File too large:', file.size);
+        showUploadStatus('File size must be less than 10MB', 'danger');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('document', file);
+    console.log('FormData created');
+
+    // Show loading state
+    setUploadLoading(true);
+    showUploadStatus('Uploading and processing document...', 'info');
+    console.log('Sending upload request...');
+
+    try {
+        const response = await fetch('/api/vault/upload', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${dashboardToken}`
+            },
+            body: formData
         });
 
-        // Validate file size (10MB)
-        if (file.size > 10 * 1024 * 1024) {
-            console.log('❌ File too large:', file.size);
-            showUploadStatus('File size must be less than 10MB', 'danger');
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('document', file);
-        console.log('FormData created');
-
-        // Show loading state
-        setUploadLoading(true);
-        showUploadStatus('Uploading and processing document...', 'info');
-        console.log('Sending upload request...');
-
+        console.log('Response status:', response.status);
+        
+        let data;
         try {
-            const response = await fetch('/api/vault/upload', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${dashboardToken}`
-                },
-                body: formData
-            });
-
-            console.log('Response status:', response.status);
-            
-            let data;
-            try {
-                data = await response.json();
-                console.log('Response data:', data);
-            } catch (jsonError) {
-                console.error('JSON parse error:', jsonError);
-                const text = await response.text();
-                console.log('Response text:', text);
-                throw new Error('Invalid JSON response: ' + text);
-            }
-
-            if (response.ok) {
-                console.log('✅ Upload successful');
-                showUploadStatus('✅ File uploaded successfully! OCR processing started.', 'success');
-                fileInput.value = ''; // Clear file input
-                document.getElementById('fileInfo').style.display = 'none';
-                loadVaultItems(); // Refresh items list
-            } else {
-                console.log('❌ Upload failed:', data.message);
-                showUploadStatus('❌ ' + (data.message || 'Upload failed'), 'danger');
-            }
-        } catch (error) {
-            console.error('❌ Upload error:', error);
-            console.error('Error details:', error.message);
-            showUploadStatus('❌ Error during upload: ' + error.message, 'danger');
-        } finally {
-            setUploadLoading(false);
-            console.log('Upload process completed');
+            data = await response.json();
+            console.log('Response data:', data);
+        } catch (jsonError) {
+            console.error('JSON parse error:', jsonError);
+            const text = await response.text();
+            console.log('Response text:', text);
+            throw new Error('Invalid JSON response: ' + text);
         }
-    });
+
+        if (response.ok) {
+            console.log('✅ Upload successful');
+            showUploadStatus('✅ File uploaded successfully! OCR processing started.', 'success');
+            resetUploadForm(); // Clear the form
+            loadVaultItems(); // Refresh items list
+        } else {
+            console.log('❌ Upload failed:', data.message);
+            showUploadStatus('❌ ' + (data.message || 'Upload failed'), 'danger');
+        }
+    } catch (error) {
+        console.error('❌ Upload error:', error);
+        console.error('Error details:', error.message);
+        showUploadStatus('❌ Error during upload: ' + error.message, 'danger');
+    } finally {
+        setUploadLoading(false);
+        console.log('Upload process completed');
+    }
+});
+}
+
+// Add this new function to reset the upload form
+function resetUploadForm() {
+    fileInput.value = ''; // Clear file input
+    
+    // Safely hide file info
+    const fileInfo = document.getElementById('fileInfo');
+    if (fileInfo) {
+        fileInfo.style.display = 'none';
+    }
+    
+    // Reset any file preview if you have one
+    const filePreview = document.getElementById('filePreview');
+    if (filePreview) {
+        filePreview.style.display = 'none';
+    }
+}
+
+// Trigger file input click
+function triggerFileInput() {
+    document.getElementById('document').click();
+}
+
+// Handle file selection
+function handleFileSelect(input) {
+    const file = input.files[0];
+    const fileInfo = document.getElementById('fileInfo');
+    const uploadButton = document.getElementById('uploadButton');
+    
+    if (file) {
+        // Show file info
+        document.getElementById('fileName').textContent = file.name;
+        document.getElementById('fileSize').textContent = formatFileSize(file.size);
+        fileInfo.style.display = 'block';
+        
+        // Enable upload button
+        uploadButton.disabled = false;
+        
+        // Update upload area style
+        const uploadArea = document.getElementById('uploadArea');
+        uploadArea.style.borderColor = '#28a745';
+        uploadArea.style.backgroundColor = '#d4edda';
+    } else {
+        clearFile();
+    }
+}
+
+// Clear selected file
+function clearFile() {
+    const fileInput = document.getElementById('document');
+    const fileInfo = document.getElementById('fileInfo');
+    const uploadButton = document.getElementById('uploadButton');
+    const uploadArea = document.getElementById('uploadArea');
+    
+    fileInput.value = '';
+    fileInfo.style.display = 'none';
+    uploadButton.disabled = true;
+    
+    // Reset upload area style
+    uploadArea.style.borderColor = '#dee2e6';
+    uploadArea.style.backgroundColor = '#f8f9fa';
+}
+
+// Form validation
+function validateForm() {
+    const fileInput = document.getElementById('document');
+    if (!fileInput.files[0]) {
+        showUploadStatus('Please select a file first', 'danger');
+        return false;
+    }
+    return true;
+}
+
+// Format file size
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 // Show upload status
@@ -116,7 +205,6 @@ function showUploadStatus(message, type = 'info') {
     `;
 }
 
-// Set upload loading state
 // Set upload loading state
 function setUploadLoading(isLoading) {
     console.log('Setting loading:', isLoading);
