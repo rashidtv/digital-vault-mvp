@@ -117,23 +117,43 @@ function showUploadStatus(message, type = 'info') {
 }
 
 // Set upload loading state
+// Set upload loading state
 function setUploadLoading(isLoading) {
     console.log('Setting loading:', isLoading);
     const button = document.getElementById('uploadButton');
     const spinner = document.getElementById('uploadSpinner');
-    const uploadText = button.querySelector('.upload-text');
+    
+    if (!button) {
+        console.error('Upload button not found');
+        return;
+    }
     
     if (isLoading) {
         button.disabled = true;
-        spinner.classList.remove('d-none');
-        uploadText.textContent = 'Processing...';
+        if (spinner) {
+            spinner.classList.remove('d-none');
+        }
+        // Update button text directly if upload-text span doesn't exist
+        const uploadText = button.querySelector('.upload-text');
+        if (uploadText) {
+            uploadText.textContent = 'Processing...';
+        } else {
+            button.textContent = 'Processing...';
+        }
     } else {
         button.disabled = false;
-        spinner.classList.add('d-none');
-        uploadText.textContent = 'Upload & Process Document';
+        if (spinner) {
+            spinner.classList.add('d-none');
+        }
+        // Reset button text
+        const uploadText = button.querySelector('.upload-text');
+        if (uploadText) {
+            uploadText.textContent = 'Upload & Process Document';
+        } else {
+            button.textContent = 'Upload & Process Document';
+        }
     }
 }
-
 // Load user's vault items
 async function loadVaultItems() {
     try {
