@@ -163,12 +163,19 @@ async function loadVaultItems() {
             }
         });
 
-        if (response.ok) {
-            const items = await response.json();
-            displayVaultItems(items);
-        } else {
-            console.error('Failed to load items:', response.status);
-        }
+       if (response.ok) {
+    console.log('✅ Upload successful');
+    showUploadStatus('✅ File uploaded successfully! OCR processing started.', 'success');
+    fileInput.value = ''; // Clear file input
+    
+    // Safe element access
+    const fileInfo = document.getElementById('fileInfo');
+    if (fileInfo) {
+        fileInfo.style.display = 'none';
+    }
+    
+    loadVaultItems(); // Refresh items list
+}
     } catch (error) {
         console.error('Error loading vault items:', error);
         document.getElementById('vaultItems').innerHTML = `
