@@ -19,17 +19,13 @@ const allowedOrigins = [
 ];
 
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, Postman)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
-    }
-    return callback(null, true);
-  },
-  credentials: true
+    origin: [
+        'http://localhost:5000',
+        'https://digital-vault-mvp.onrender.com'
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
@@ -88,10 +84,21 @@ app.get('/dashboard.html', (req, res) => {
 if (MONGODB_URI && MONGODB_URI.startsWith('mongodb')) {
   console.log('🔄 Attempting MongoDB connection...');
   
-  mongoose.connect(MONGODB_URI, {
-    serverSelectionTimeoutMS: 5000, // 5 second timeout
-    socketTimeoutMS: 45000,
+// MongoDB connection with better error handling
+mongoose.connect(MONGODB_URI)
+  .then(() => {
+    console.log('✅ MongoDB connected successfully');
+    useRealMongoDB = true;
   })
+  .catch(err => {
+    console.error('❌ MongoDB connection failed:', err.message);
+    useRealMongoDB = false;
+  });
+
+// Don't let MongoDB errors crash the server
+mongoose.connection.on('error', err => {
+    console.error('MongoDB connection error:', err);
+});
   .then(() => {
     useRealMongoDB = true;
     console.log('✅ MongoDB connected successfully');
@@ -214,6 +221,9 @@ app.use((req, res) => {
 
 // Start server
 const PORT = process.env.PORT || 10000;
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT}`);
+});
 
 const server = app.listen(PORT, () => {
   const initTime = Date.now() - startTime;
