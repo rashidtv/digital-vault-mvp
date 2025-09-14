@@ -156,6 +156,24 @@ app.get('/api/auth/status', (req, res) => {
   });
 });
 
+// Add after auth routes
+const vaultRoutes = require('./routes/vault');
+app.use('/api/vault', vaultRoutes);
+
+// Ensure uploads directory exists
+const fs = require('fs');
+const uploadsDir = './uploads';
+const cardsDir = './cards';
+
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log('Created uploads directory');
+}
+if (!fs.existsSync(cardsDir)) {
+  fs.mkdirSync(cardsDir, { recursive: true });
+  console.log('Created cards directory');
+}
+
 // Debug endpoint to check IP (for whitelisting)
 app.get('/api/ip', (req, res) => {
   const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;

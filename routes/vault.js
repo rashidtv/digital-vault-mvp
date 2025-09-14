@@ -1,9 +1,8 @@
 const express = require('express');
 const { auth } = require('../middleware/auth');
 const VaultItem = require('../models/VaultItem');
-const upload = require('../middleware/upload');
+const { upload, handleUploadError } = require('../middleware/upload');
 const Tesseract = require('tesseract.js');
-const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 
@@ -11,9 +10,14 @@ const router = express.Router();
 
 // @route   POST /api/vault/upload
 // @desc    Upload property grant document
-router.post('/upload', auth, upload.single('document'), async (req, res) => {
+router.post('/upload', auth, upload.single('document'), handleUploadError, async (req, res) => {
   try {
+    console.log('Upload endpoint hit');
+    console.log('Request file:', req.file);
+    console.log('Request body:', req.body);
+
     if (!req.file) {
+      console.log('No file in request');
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
@@ -28,6 +32,7 @@ router.post('/upload', auth, upload.single('document'), async (req, res) => {
     });
 
     await vaultItem.save();
+    console.log('Vault item saved:', vaultItem._id);
 
     // Start OCR processing in background
     processOCR(vaultItem._id);
@@ -42,7 +47,6 @@ router.post('/upload', auth, upload.single('document'), async (req, res) => {
     res.status(500).json({ message: 'Server error during upload' });
   }
 });
-
 // @route   GET /api/vault/items
 // @desc    Get user's vault items
 router.get('/items', auth, async (req, res) => {
@@ -55,6 +59,11 @@ router.get('/items', auth, async (req, res) => {
     console.error('Get items error:', error);
     res.status(500).json({ message: 'Server error fetching items' });
   }
+});
+
+// Add this to routes/vault.js
+router.get('/test', auth, (req, res) => {
+  res.json({ message: 'Vault route is working', user: req.user.id });
 });
 
 // OCR Processing function (runs in background)
