@@ -1,32 +1,34 @@
-console.log('Dashboard JS loaded');
+console.log('Dashboard JavaScript loaded');
 const API_BASE = '/api';
 
 // DOM Elements
 const uploadForm = document.getElementById('uploadForm');
 const uploadStatus = document.getElementById('uploadStatus');
 const vaultItems = document.getElementById('vaultItems');
+const fileInput = document.getElementById('document');
+
+// Check if elements exist
+console.log('Upload form:', uploadForm);
+console.log('File input:', fileInput);
 
 // Check authentication
 const token = localStorage.getItem('token');
+console.log('Token exists:', !!token);
 if (!token) {
+    console.log('No token, redirecting to home');
     window.location.href = '/';
 }
 
-// Handle file upload
-// Add this at the top of your dashboard.js
-console.log('Dashboard JS loaded');
-
-// Modify the upload event listener to add debugging:
-document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+// Handle file upload with detailed logging
+uploadForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    console.log('Upload form submitted');
+    console.log('📤 Upload form submitted');
     
-    const fileInput = document.getElementById('document');
     const file = fileInput.files[0];
     console.log('Selected file:', file);
     
     if (!file) {
-        console.log('No file selected');
+        console.log('❌ No file selected');
         showUploadStatus('Please select a file', 'danger');
         return;
     }
@@ -39,7 +41,7 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
 
     // Validate file size (10MB)
     if (file.size > 10 * 1024 * 1024) {
-        console.log('File too large:', file.size);
+        console.log('❌ File too large:', file.size);
         showUploadStatus('File size must be less than 10MB', 'danger');
         return;
     }
@@ -51,9 +53,9 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
     // Show loading state
     setUploadLoading(true);
     showUploadStatus('Uploading and processing document...', 'info');
+    console.log('Sending upload request...');
 
     try {
-        console.log('Sending upload request...');
         const response = await fetch('/api/vault/upload', {
             method: 'POST',
             headers: {
@@ -63,33 +65,67 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
         });
 
         console.log('Response status:', response.status);
-        const data = await response.json();
-        console.log('Response data:', data);
+        console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+        
+        let data;
+        try {
+            data = await response.json();
+            console.log('Response data:', data);
+        } catch (jsonError) {
+            console.error('JSON parse error:', jsonError);
+            const text = await response.text();
+            console.log('Response text:', text);
+            throw new Error('Invalid JSON response: ' + text);
+        }
 
         if (response.ok) {
+            console.log('✅ Upload successful');
             showUploadStatus('✅ File uploaded successfully! OCR processing started.', 'success');
             fileInput.value = ''; // Clear file input
             document.getElementById('fileInfo').style.display = 'none';
             loadVaultItems(); // Refresh items list
         } else {
+            console.log('❌ Upload failed:', data.message);
             showUploadStatus('❌ ' + (data.message || 'Upload failed'), 'danger');
         }
     } catch (error) {
-        console.error('Upload error:', error);
-        showUploadStatus('❌ Network error during upload', 'danger');
+        console.error('❌ Upload error:', error);
+        console.error('Error details:', error.message, error.stack);
+        showUploadStatus('❌ Error during upload: ' + error.message, 'danger');
     } finally {
         setUploadLoading(false);
+        console.log('Upload process completed');
     }
 });
 
 // Show upload status
 function showUploadStatus(message, type = 'info') {
-    uploadStatus.innerHTML = `
+    console.log('Status:', type, message);
+    const statusDiv = document.getElementById('uploadStatus');
+    statusDiv.innerHTML = `
         <div class="alert alert-${type} alert-dismissible fade show">
             ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     `;
+}
+
+// Set upload loading state
+function setUploadLoading(isLoading) {
+    console.log('Setting loading:', isLoading);
+    const button = document.getElementById('uploadButton');
+    const spinner = document.getElementById('uploadSpinner');
+    const uploadText = button.querySelector('.upload-text');
+    
+    if (isLoading) {
+        button.disabled = true;
+        spinner.classList.remove('d-none');
+        uploadText.textContent = 'Processing...';
+    } else {
+        button.disabled = false;
+        spinner.classList.add('d-none');
+        uploadText.textContent = 'Upload & Process Document';
+    }
 }
 
 // Load user's vault items

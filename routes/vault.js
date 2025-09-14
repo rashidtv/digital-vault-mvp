@@ -62,8 +62,13 @@ router.get('/items', auth, async (req, res) => {
 });
 
 // Add this to routes/vault.js
+// Add this test route
 router.get('/test', auth, (req, res) => {
-  res.json({ message: 'Vault route is working', user: req.user.id });
+    res.json({ 
+        message: 'Vault API is working', 
+        user: req.user.id,
+        timestamp: new Date().toISOString()
+    });
 });
 
 // OCR Processing function (runs in background)
