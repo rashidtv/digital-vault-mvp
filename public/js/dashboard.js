@@ -1,6 +1,6 @@
 console.log('Dashboard JavaScript loaded');
 
-// DOM Elements - DON'T declare token here again
+// DOM Elements
 const uploadForm = document.getElementById('uploadForm');
 const uploadStatus = document.getElementById('uploadStatus');
 const vaultItems = document.getElementById('vaultItems');
@@ -10,93 +10,99 @@ const fileInput = document.getElementById('document');
 console.log('Upload form:', uploadForm);
 console.log('File input:', fileInput);
 
-// Get token from localStorage (already declared in auth.js)
+// Get token from localStorage
 const dashboardToken = localStorage.getItem('token');
 console.log('Token exists:', !!dashboardToken);
 
+// Check authentication and redirect if no token
 if (!dashboardToken) {
     console.log('No token, redirecting to home');
     window.location.href = '/';
-    return; // Stop execution if no token
+} else {
+    // Only set up event listeners if user is authenticated
+    initializeUploadHandler();
+    loadVaultItems();
 }
 
-// Handle file upload with detailed logging
-uploadForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    console.log('📤 Upload form submitted');
-    
-    const file = fileInput.files[0];
-    console.log('Selected file:', file);
-    
-    if (!file) {
-        console.log('❌ No file selected');
-        showUploadStatus('Please select a file', 'danger');
-        return;
-    }
+function initializeUploadHandler() {
+    // Handle file upload with detailed logging
+    uploadForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        console.log('📤 Upload form submitted');
+        
+        const file = fileInput.files[0];
+        console.log('Selected file:', file);
+        
+        if (!file) {
+            console.log('❌ No file selected');
+            showUploadStatus('Please select a file', 'danger');
+            return;
+        }
 
-    console.log('File details:', {
-        name: file.name,
-        size: file.size,
-        type: file.type
-    });
-
-    // Validate file size (10MB)
-    if (file.size > 10 * 1024 * 1024) {
-        console.log('❌ File too large:', file.size);
-        showUploadStatus('File size must be less than 10MB', 'danger');
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append('document', file);
-    console.log('FormData created');
-
-    // Show loading state
-    setUploadLoading(true);
-    showUploadStatus('Uploading and processing document...', 'info');
-    console.log('Sending upload request...');
-
-    try {
-        const response = await fetch('/api/vault/upload', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${dashboardToken}`  // Use dashboardToken here
-            },
-            body: formData
+        console.log('File details:', {
+            name: file.name,
+            size: file.size,
+            type: file.type
         });
 
-        console.log('Response status:', response.status);
-        
-        let data;
-        try {
-            data = await response.json();
-            console.log('Response data:', data);
-        } catch (jsonError) {
-            console.error('JSON parse error:', jsonError);
-            const text = await response.text();
-            console.log('Response text:', text);
-            throw new Error('Invalid JSON response: ' + text);
+        // Validate file size (10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            console.log('❌ File too large:', file.size);
+            showUploadStatus('File size must be less than 10MB', 'danger');
+            return;
         }
 
-        if (response.ok) {
-            console.log('✅ Upload successful');
-            showUploadStatus('✅ File uploaded successfully! OCR processing started.', 'success');
-            fileInput.value = ''; // Clear file input
-            document.getElementById('fileInfo').style.display = 'none';
-            loadVaultItems(); // Refresh items list
-        } else {
-            console.log('❌ Upload failed:', data.message);
-            showUploadStatus('❌ ' + (data.message || 'Upload failed'), 'danger');
+        const formData = new FormData();
+        formData.append('document', file);
+        console.log('FormData created');
+
+        // Show loading state
+        setUploadLoading(true);
+        showUploadStatus('Uploading and processing document...', 'info');
+        console.log('Sending upload request...');
+
+        try {
+            const response = await fetch('/api/vault/upload', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${dashboardToken}`
+                },
+                body: formData
+            });
+
+            console.log('Response status:', response.status);
+            
+            let data;
+            try {
+                data = await response.json();
+                console.log('Response data:', data);
+            } catch (jsonError) {
+                console.error('JSON parse error:', jsonError);
+                const text = await response.text();
+                console.log('Response text:', text);
+                throw new Error('Invalid JSON response: ' + text);
+            }
+
+            if (response.ok) {
+                console.log('✅ Upload successful');
+                showUploadStatus('✅ File uploaded successfully! OCR processing started.', 'success');
+                fileInput.value = ''; // Clear file input
+                document.getElementById('fileInfo').style.display = 'none';
+                loadVaultItems(); // Refresh items list
+            } else {
+                console.log('❌ Upload failed:', data.message);
+                showUploadStatus('❌ ' + (data.message || 'Upload failed'), 'danger');
+            }
+        } catch (error) {
+            console.error('❌ Upload error:', error);
+            console.error('Error details:', error.message);
+            showUploadStatus('❌ Error during upload: ' + error.message, 'danger');
+        } finally {
+            setUploadLoading(false);
+            console.log('Upload process completed');
         }
-    } catch (error) {
-        console.error('❌ Upload error:', error);
-        console.error('Error details:', error.message);
-        showUploadStatus('❌ Error during upload: ' + error.message, 'danger');
-    } finally {
-        setUploadLoading(false);
-        console.log('Upload process completed');
-    }
-});
+    });
+}
 
 // Show upload status
 function showUploadStatus(message, type = 'info') {
@@ -133,7 +139,7 @@ async function loadVaultItems() {
     try {
         const response = await fetch('/api/vault/items', {
             headers: {
-                'Authorization': `Bearer ${dashboardToken}`  // Use dashboardToken here
+                'Authorization': `Bearer ${dashboardToken}`
             }
         });
 
@@ -155,13 +161,15 @@ async function loadVaultItems() {
 
 // Display vault items
 function displayVaultItems(items) {
-    const vaultItems = document.getElementById('vaultItems');
+    const vaultItemsContainer = document.getElementById('vaultItems');
     const itemsCount = document.getElementById('itemsCount');
     
-    itemsCount.textContent = `${items.length} document${items.length !== 1 ? 's' : ''}`;
+    if (itemsCount) {
+        itemsCount.textContent = `${items.length} document${items.length !== 1 ? 's' : ''}`;
+    }
 
     if (items.length === 0) {
-        vaultItems.innerHTML = `
+        vaultItemsContainer.innerHTML = `
             <div class="text-center py-4">
                 <div class="text-muted">No documents uploaded yet.</div>
                 <small class="text-muted">Upload your first property grant above to get started!</small>
@@ -170,7 +178,7 @@ function displayVaultItems(items) {
         return;
     }
 
-    vaultItems.innerHTML = items.map(item => `
+    vaultItemsContainer.innerHTML = items.map(item => `
         <div class="card mb-3 vault-item">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
@@ -246,12 +254,11 @@ function escapeHtml(text) {
 }
 
 function showTextModal(filename, text) {
-    // Create and show modal logic here
     alert('Extracted text from ' + filename + ':\n\n' + text);
 }
 
-// Load items when page loads
+// Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Dashboard DOM loaded');
-    loadVaultItems();
+    // Authentication is already checked at the top level
 });
