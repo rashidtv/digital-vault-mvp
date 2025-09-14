@@ -1,7 +1,6 @@
 console.log('Dashboard JavaScript loaded');
-const API_BASE = '/api';
 
-// DOM Elements
+// DOM Elements - DON'T declare token here again
 const uploadForm = document.getElementById('uploadForm');
 const uploadStatus = document.getElementById('uploadStatus');
 const vaultItems = document.getElementById('vaultItems');
@@ -11,12 +10,14 @@ const fileInput = document.getElementById('document');
 console.log('Upload form:', uploadForm);
 console.log('File input:', fileInput);
 
-// Check authentication
-const token = localStorage.getItem('token');
-console.log('Token exists:', !!token);
-if (!token) {
+// Get token from localStorage (already declared in auth.js)
+const dashboardToken = localStorage.getItem('token');
+console.log('Token exists:', !!dashboardToken);
+
+if (!dashboardToken) {
     console.log('No token, redirecting to home');
     window.location.href = '/';
+    return; // Stop execution if no token
 }
 
 // Handle file upload with detailed logging
@@ -59,13 +60,12 @@ uploadForm.addEventListener('submit', async (e) => {
         const response = await fetch('/api/vault/upload', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${token}`
+                'Authorization': `Bearer ${dashboardToken}`  // Use dashboardToken here
             },
             body: formData
         });
 
         console.log('Response status:', response.status);
-        console.log('Response headers:', Object.fromEntries(response.headers.entries()));
         
         let data;
         try {
@@ -90,7 +90,7 @@ uploadForm.addEventListener('submit', async (e) => {
         }
     } catch (error) {
         console.error('❌ Upload error:', error);
-        console.error('Error details:', error.message, error.stack);
+        console.error('Error details:', error.message);
         showUploadStatus('❌ Error during upload: ' + error.message, 'danger');
     } finally {
         setUploadLoading(false);
@@ -131,44 +131,81 @@ function setUploadLoading(isLoading) {
 // Load user's vault items
 async function loadVaultItems() {
     try {
-        const response = await fetch(`${API_BASE}/vault/items`, {
+        const response = await fetch('/api/vault/items', {
             headers: {
-                'Authorization': `Bearer ${token}`
+                'Authorization': `Bearer ${dashboardToken}`  // Use dashboardToken here
             }
         });
 
         if (response.ok) {
             const items = await response.json();
             displayVaultItems(items);
+        } else {
+            console.error('Failed to load items:', response.status);
         }
     } catch (error) {
         console.error('Error loading vault items:', error);
+        document.getElementById('vaultItems').innerHTML = `
+            <div class="alert alert-danger">
+                Error loading documents. Please try again.
+            </div>
+        `;
     }
 }
 
 // Display vault items
 function displayVaultItems(items) {
+    const vaultItems = document.getElementById('vaultItems');
+    const itemsCount = document.getElementById('itemsCount');
+    
+    itemsCount.textContent = `${items.length} document${items.length !== 1 ? 's' : ''}`;
+
     if (items.length === 0) {
-        vaultItems.innerHTML = '<p class="text-muted">No documents uploaded yet.</p>';
+        vaultItems.innerHTML = `
+            <div class="text-center py-4">
+                <div class="text-muted">No documents uploaded yet.</div>
+                <small class="text-muted">Upload your first property grant above to get started!</small>
+            </div>
+        `;
         return;
     }
 
     vaultItems.innerHTML = items.map(item => `
-        <div class="card mb-3">
+        <div class="card mb-3 vault-item">
             <div class="card-body">
-                <h6 class="card-title">${item.originalName}</h6>
-                <p class="card-text">
-                    <small class="text-muted">
-                        Uploaded: ${new Date(item.createdAt).toLocaleDateString()}<br>
-                        Status: <span class="badge bg-${getStatusColor(item.ocrStatus)}">${item.ocrStatus}</span><br>
-                        Size: ${formatFileSize(item.fileSize)}
-                    </small>
-                </p>
-                ${item.extractedText ? `
-                    <button class="btn btn-sm btn-outline-primary view-text" data-text="${escapeHtml(item.extractedText)}">
-                        View Extracted Text
-                    </button>
-                ` : ''}
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <h6 class="card-title d-flex align-items-center">
+                            <i class="bi bi-file-earmark-${item.fileType.includes('pdf') ? 'pdf' : 'image'} me-2"></i>
+                            ${item.originalName}
+                        </h6>
+                        <p class="card-text mb-1">
+                            <small class="text-muted">
+                                <i class="bi bi-calendar me-1"></i>
+                                Uploaded: ${new Date(item.createdAt).toLocaleDateString()} at ${new Date(item.createdAt).toLocaleTimeString()}
+                            </small>
+                        </p>
+                        <p class="card-text mb-2">
+                            <small class="text-muted">
+                                <i class="bi bi-hdd me-1"></i>
+                                Size: ${formatFileSize(item.fileSize)}
+                            </small>
+                        </p>
+                        <div class="d-flex align-items-center">
+                            <span class="badge status-badge bg-${getStatusColor(item.ocrStatus)} me-2">
+                                ${item.ocrStatus}
+                            </span>
+                            ${item.isProcessed ? '<span class="badge status-badge bg-success">Processed</span>' : ''}
+                        </div>
+                    </div>
+                    <div class="btn-group">
+                        ${item.extractedText ? `
+                            <button class="btn btn-sm btn-outline-primary view-text" data-text="${escapeHtml(item.extractedText)}" data-filename="${item.originalName}">
+                                <i class="bi bi-eye me-1"></i>View Text
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
             </div>
         </div>
     `).join('');
@@ -177,7 +214,8 @@ function displayVaultItems(items) {
     document.querySelectorAll('.view-text').forEach(button => {
         button.addEventListener('click', () => {
             const text = button.getAttribute('data-text');
-            alert('Extracted Text:\n\n' + text);
+            const filename = button.getAttribute('data-filename');
+            showTextModal(filename, text);
         });
     });
 }
@@ -202,13 +240,18 @@ function formatFileSize(bytes) {
 }
 
 function escapeHtml(text) {
-    return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showTextModal(filename, text) {
+    // Create and show modal logic here
+    alert('Extracted text from ' + filename + ':\n\n' + text);
 }
 
 // Load items when page loads
-document.addEventListener('DOMContentLoaded', loadVaultItems);
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Dashboard DOM loaded');
+    loadVaultItems();
+});
