@@ -2,108 +2,127 @@ console.log("✅ Dashboard JS loaded");
 
 // DOM Elements
 const uploadForm = document.getElementById("uploadForm");
+const fileInput = document.getElementById("document");
+const uploadButton = document.getElementById("uploadButton");
+const uploadSpinner = document.getElementById("uploadSpinner");
 const uploadStatus = document.getElementById("uploadStatus");
 const vaultItems = document.getElementById("vaultItems");
-const fileInput = document.getElementById("document");
+const itemsCount = document.getElementById("itemsCount");
+const logoutBtn = document.getElementById("logoutBtn");
+const welcomeUser = document.getElementById("welcomeUser");
 
-// Token from localStorage
-const dashboardToken = localStorage.getItem("token");
-console.log("✅ Token found:", !!dashboardToken);
-
-// Redirect if no token
-if (!dashboardToken) {
-  console.log("❌ No token, redirecting to home");
+// Token
+const token = localStorage.getItem("token");
+if (!token) {
   window.location.href = "/";
-} else {
-  initializeUploadHandler();
-  loadVaultItems();
 }
 
-// Upload Handler
-function initializeUploadHandler() {
-  uploadForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const file = fileInput.files[0];
-    if (!file) {
-      showUploadStatus("Please select a file first", "danger");
-      return;
+// Fetch logged in user
+async function fetchUser() {
+  try {
+    const res = await fetch("/api/auth/user", {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const user = await res.json();
+      welcomeUser.textContent = `Welcome, ${user.username}`;
+    } else {
+      console.warn("User fetch failed");
     }
-
-    // Validate file type & size
-    const allowedTypes = ["image/jpeg", "image/png", "application/pdf", "image/webp"];
-    if (!allowedTypes.includes(file.type)) {
-      showUploadStatus("Invalid file type. Allowed: JPG, PNG, PDF, WEBP", "danger");
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      showUploadStatus("File must be < 10MB", "danger");
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("document", file);
-
-    setUploadLoading(true);
-    showUploadStatus("Uploading and processing document...", "info");
-
-    try {
-      const response = await fetch("/api/vault/upload", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${dashboardToken}` },
-        body: formData,
-      });
-
-      const data = await response.json();
-      console.log("Upload response:", data);
-
-      if (response.ok && data.status === "success") {
-        showUploadStatus("✅ " + data.message, "success");
-        resetUploadForm();
-        loadVaultItems();
-      } else {
-        showUploadStatus("❌ " + (data.message || "Upload failed"), "danger");
-      }
-    } catch (error) {
-      console.error("Upload error:", error);
-      showUploadStatus("❌ Error: " + error.message, "danger");
-    } finally {
-      setUploadLoading(false);
-    }
-  });
-}
-
-// File Input Helpers
-function triggerFileInput() {
-  document.getElementById("document").click();
-}
-
-function handleFileSelect(input) {
-  const file = input.files[0];
-  const fileInfo = document.getElementById("fileInfo");
-  const uploadButton = document.getElementById("uploadButton");
-
-  if (file) {
-    document.getElementById("fileName").textContent = file.name;
-    document.getElementById("fileSize").textContent = formatFileSize(file.size);
-    fileInfo.style.display = "block";
-    uploadButton.disabled = false;
-  } else {
-    clearFile();
+  } catch (err) {
+    console.error("User fetch error:", err);
   }
 }
 
+// Logout
+logoutBtn.addEventListener("click", () => {
+  localStorage.removeItem("token");
+  window.location.href = "/";
+});
+
+// Upload handler
+uploadForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const file = fileInput.files[0];
+  if (!file) {
+    showUploadStatus("Please select a file", "danger");
+    return;
+  }
+
+  const allowedTypes = ["image/jpeg", "image/png", "application/pdf", "image/webp"];
+  if (!allowedTypes.includes(file.type)) {
+    showUploadStatus("Invalid file type. Use JPG, PNG, PDF, or WEBP", "danger");
+    return;
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    showUploadStatus("File too large (max 10MB)", "danger");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("document", file);
+
+  setUploadLoading(true);
+  showUploadStatus("Uploading & processing...", "info");
+
+  try {
+    const res = await fetch("/api/vault/upload", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData
+    });
+
+    const data = await res.json();
+    console.log("Upload response:", data);
+
+    if (res.ok && data.status === "success") {
+      showUploadStatus("✅ " + data.message, "success");
+      resetUploadForm();
+      await loadVaultItems();
+    } else {
+      showUploadStatus("❌ " + (data.message || "Upload failed"), "danger");
+    }
+  } catch (err) {
+    console.error("Upload error:", err);
+    showUploadStatus("🚨 Server error: " + err.message, "danger");
+  } finally {
+    setUploadLoading(false);
+  }
+});
+
+// Reset form
+function resetUploadForm() {
+  fileInput.value = "";
+  document.getElementById("fileInfo").style.display = "none";
+  uploadButton.disabled = true;
+}
+
+// Trigger file input
+function triggerFileInput() {
+  fileInput.click();
+}
+
+// Handle file select
+function handleFileSelect(input) {
+  const file = input.files[0];
+  if (file) {
+    document.getElementById("fileName").textContent = file.name;
+    document.getElementById("fileSize").textContent = formatFileSize(file.size);
+    document.getElementById("fileInfo").style.display = "block";
+    uploadButton.disabled = false;
+  }
+}
+
+// Clear file
 function clearFile() {
   fileInput.value = "";
   document.getElementById("fileInfo").style.display = "none";
-  document.getElementById("uploadButton").disabled = true;
+  uploadButton.disabled = true;
 }
 
-function resetUploadForm() {
-  clearFile();
-}
-
-// Status Display
+// Status messages
 function showUploadStatus(message, type = "info") {
   uploadStatus.innerHTML = `
     <div class="alert alert-${type} alert-dismissible fade show">
@@ -113,82 +132,20 @@ function showUploadStatus(message, type = "info") {
   `;
 }
 
+// Upload button state
 function setUploadLoading(isLoading) {
-  const button = document.getElementById("uploadButton");
-  const spinner = document.getElementById("uploadSpinner");
-  const text = button.querySelector(".upload-text");
-
   if (isLoading) {
-    button.disabled = true;
-    spinner.classList.remove("d-none");
-    text.textContent = "Processing...";
+    uploadButton.disabled = true;
+    uploadButton.querySelector(".upload-text").textContent = "Processing...";
+    uploadSpinner.classList.remove("d-none");
   } else {
-    button.disabled = false;
-    spinner.classList.add("d-none");
-    text.textContent = "Upload & Process Document";
+    uploadButton.disabled = false;
+    uploadButton.querySelector(".upload-text").textContent = "Upload & Process Document";
+    uploadSpinner.classList.add("d-none");
   }
 }
 
-// Vault Items
-async function loadVaultItems() {
-  try {
-    const response = await fetch("/api/vault/items", {
-      headers: { Authorization: `Bearer ${dashboardToken}` },
-    });
-
-    if (response.ok) {
-      const items = await response.json();
-      displayVaultItems(items);
-    } else {
-      displayVaultItems([]);
-    }
-  } catch (error) {
-    console.error("Error loading vault items:", error);
-    displayVaultItems([]);
-  }
-}
-
-function displayVaultItems(items) {
-  const vaultItemsContainer = document.getElementById("vaultItems");
-  const itemsCount = document.getElementById("itemsCount");
-
-  itemsCount.textContent = `${items.length} document${items.length !== 1 ? "s" : ""}`;
-
-  if (items.length === 0) {
-    vaultItemsContainer.innerHTML = `
-      <div class="text-center py-4">
-        <div class="text-muted">No documents uploaded yet.</div>
-        <small class="text-muted">Upload your first document above!</small>
-      </div>
-    `;
-    return;
-  }
-
-  vaultItemsContainer.innerHTML = items
-    .map(
-      (item) => `
-      <div class="card mb-3 vault-item">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-start">
-            <div class="flex-grow-1">
-              <h6 class="card-title">
-                <i class="bi bi-file-earmark-${item.fileType?.includes("pdf") ? "pdf" : "image"} me-2"></i>
-                ${item.originalName}
-              </h6>
-              <p class="mb-1"><small class="text-muted">Uploaded: ${new Date(item.createdAt).toLocaleString()}</small></p>
-              <p class="mb-2"><small class="text-muted">Size: ${formatFileSize(item.fileSize)}</small></p>
-              <span class="badge bg-${getStatusColor(item.ocrStatus)}">${item.ocrStatus}</span>
-              ${item.isProcessed ? '<span class="badge bg-success ms-2">Processed</span>' : ""}
-            </div>
-          </div>
-        </div>
-      </div>
-    `
-    )
-    .join("");
-}
-
-// Helpers
+// Format file size
 function formatFileSize(bytes) {
   if (bytes === 0) return "0 Bytes";
   const k = 1024;
@@ -197,18 +154,63 @@ function formatFileSize(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 }
 
+// Load vault items
+async function loadVaultItems() {
+  try {
+    const res = await fetch("/api/vault/items", {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (!res.ok) {
+      throw new Error("Failed to fetch vault items");
+    }
+
+    const items = await res.json();
+    displayVaultItems(items);
+  } catch (err) {
+    console.error("Error loading vault items:", err);
+    vaultItems.innerHTML = `<div class="alert alert-danger">Error loading documents.</div>`;
+  }
+}
+
+// Display vault items
+function displayVaultItems(items) {
+  itemsCount.textContent = items.length;
+  if (items.length === 0) {
+    vaultItems.innerHTML = `<div class="text-muted">No documents uploaded yet.</div>`;
+    return;
+  }
+
+  vaultItems.innerHTML = items
+    .map(
+      (item) => `
+      <div class="card mb-3">
+        <div class="card-body d-flex justify-content-between">
+          <div>
+            <h6 class="mb-1">${item.originalName}</h6>
+            <small class="text-muted">${formatFileSize(item.fileSize)} | ${new Date(item.createdAt).toLocaleString()}</small>
+          </div>
+          <span class="badge bg-${getStatusColor(item.ocrStatus)}">${item.ocrStatus}</span>
+        </div>
+      </div>
+    `
+    )
+    .join("");
+}
+
+// Status colors
 function getStatusColor(status) {
   const colors = {
     completed: "success",
     processing: "warning",
     pending: "secondary",
-    failed: "danger",
+    failed: "danger"
   };
   return colors[status] || "secondary";
 }
-// Logout functionality
-document.getElementById("logoutBtn")?.addEventListener("click", () => {
-  console.log("🔒 Logging out...");
-  localStorage.removeItem("token"); // Clear stored token
-  window.location.href = "/"; // Redirect to landing page
+
+// Init
+document.addEventListener("DOMContentLoaded", () => {
+  fetchUser();
+  loadVaultItems();
 });
