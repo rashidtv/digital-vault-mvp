@@ -156,26 +156,79 @@ async function loadVaultItems() {
 }
 
 function displayVaultItems(items) {
-  if (!items || items.length === 0) {
-    vaultItems.innerHTML = `
-      <div class="text-center py-4 text-muted">
-        No documents uploaded yet. Upload your first property grant to get started.
+  const vaultItemsContainer = document.getElementById('vaultItems');
+  const itemsCount = document.getElementById('itemsCount');
+
+  if (itemsCount) {
+    itemsCount.textContent = `${items.length} document${items.length !== 1 ? 's' : ''}`;
+  }
+
+  if (items.length === 0) {
+    vaultItemsContainer.innerHTML = `
+      <div class="text-center py-4">
+        <div class="text-muted">No documents uploaded yet.</div>
+        <small class="text-muted">Upload your first property grant above to get started!</small>
       </div>
     `;
     return;
   }
 
-  vaultItems.innerHTML = items.map(item => `
+  vaultItemsContainer.innerHTML = items.map(item => `
     <div class="card mb-3 vault-item">
       <div class="card-body">
-        <h6 class="card-title">
-          ${item.originalName} <small class="text-muted">(${formatFileSize(item.fileSize)})</small>
-        </h6>
-        <p class="mb-1"><strong>Status:</strong> ${item.ocrStatus}</p>
-        <p class="mb-0"><strong>Uploaded:</strong> ${new Date(item.createdAt).toLocaleString()}</p>
+        <div class="d-flex justify-content-between align-items-start">
+          <div class="flex-grow-1">
+            <h6 class="card-title d-flex align-items-center">
+              <i class="bi bi-file-earmark-${item.fileType.includes('pdf') ? 'pdf' : 'image'} me-2"></i>
+              ${item.originalName}
+            </h6>
+            <p class="card-text mb-1">
+              <small class="text-muted">
+                <i class="bi bi-calendar me-1"></i>
+                Uploaded: ${new Date(item.createdAt).toLocaleDateString()} at ${new Date(item.createdAt).toLocaleTimeString()}
+              </small>
+            </p>
+            <p class="card-text mb-2">
+              <small class="text-muted">
+                <i class="bi bi-hdd me-1"></i>
+                Size: ${formatFileSize(item.fileSize)}
+              </small>
+            </p>
+            <p class="card-text mb-2">
+              <small class="text-muted">
+                <i class="bi bi-person me-1"></i>
+                Nominee: ${item.nominee?.name || '—'} (${item.nominee?.relationship || '—'})
+              </small>
+            </p>
+            <div class="d-flex align-items-center">
+              <span class="badge status-badge bg-${getStatusColor(item.ocrStatus)} me-2">
+                ${item.ocrStatus}
+              </span>
+              ${item.isProcessed ? '<span class="badge status-badge bg-success">Processed</span>' : ''}
+            </div>
+          </div>
+          <div class="btn-group">
+            ${item.extractedText ? `
+              <button class="btn btn-sm btn-outline-primary view-text" 
+                data-text="${escapeHtml(item.extractedText)}" 
+                data-filename="${item.originalName}">
+                <i class="bi bi-eye me-1"></i>View Text
+              </button>
+            ` : ''}
+          </div>
+        </div>
       </div>
     </div>
   `).join('');
+
+   // Add event listeners for view buttons
+  document.querySelectorAll('.view-text').forEach(button => {
+    button.addEventListener('click', () => {
+      const text = button.getAttribute('data-text');
+      const filename = button.getAttribute('data-filename');
+      showTextModal(filename, text);
+    });
+  });
 }
 
 // --- Utils ---
