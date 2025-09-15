@@ -78,6 +78,15 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Add status endpoint
+app.get('/api/auth/status', (req, res) => {
+  res.json({
+    status: 'OK',
+    usingMongoDB: false,
+    message: 'Temporary authentication mode'
+  });
+});
+
 // Serve static pages
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
