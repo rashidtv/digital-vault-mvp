@@ -1,12 +1,17 @@
 require('dotenv').config();
 const express = require('express');
+const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const multer = require('multer');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
+// Initialize Express App
 const app = express();
 
-// --- Middleware ---
+// Middleware
 const allowedOrigins = [
   'http://localhost:5000',
   'http://localhost:3000',
@@ -17,8 +22,7 @@ app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
     if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy does not allow this origin.';
-      return callback(new Error(msg), false);
+      return callback(new Error('CORS not allowed from this origin.'), false);
     }
     return callback(null, true);
   },
@@ -29,112 +33,160 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
-// --- File Upload (multer) ---
+// ===== MongoDB Setup =====
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/vault";
+mongoose.connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log("✅ MongoDB connected"))
+  .catch(err => console.error("❌ MongoDB error:", err));
+
+// ===== User Model =====
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, unique: true, required: true },
+  password: { type: String, required: true },
+  isSubscribed: { type: Boolean, default: false }
+});
+const User = mongoose.model("User", userSchema);
+
+// ===== Auth Middleware =====
+const authMiddleware = (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+  if (!authHeader) return res.status(401).json({ message: "Missing token" });
+
+  const token = authHeader.split(" ")[1];
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "supersecret");
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: "Invalid token" });
+  }
+};
+
+// ===== Auth Routes =====
+
+// Register
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    if (!name || !email || !password)
+      return res.status(400).json({ message: "All fields required" });
+
+    const existing = await User.findOne({ email });
+    if (existing) return res.status(400).json({ message: "Email already exists" });
+
+    const hashed = await bcrypt.hash(password, 10);
+    const user = new User({ name, email, password: hashed });
+    await user.save();
+
+    const token = jwt.sign(
+      { id: user._id, email: user.email },
+      process.env.JWT_SECRET || "supersecret",
+      { expiresIn: "1d" }
+    );
+
+    res.json({
+      token,
+      user: { id: user._id, name: user.name, email: user.email, isSubscribed: user.isSubscribed }
+    });
+  } catch (err) {
+    console.error("Register error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Login
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ message: "Invalid credentials" });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
+
+    const token = jwt.sign(
+      { id: user._id, email: user.email },
+      process.env.JWT_SECRET || "supersecret",
+      { expiresIn: "1d" }
+    );
+
+    res.json({
+      token,
+      user: { id: user._id, name: user.name, email: user.email, isSubscribed: user.isSubscribed }
+    });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Get Current User
+app.get("/api/auth/user", authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("-password");
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ===== File Upload Config =====
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|pdf|webp/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
-
-    if (mimetype && extname) cb(null, true);
-    else cb(new Error('Only images and PDF files are allowed'));
+    if (mimetype && extname) return cb(null, true);
+    cb(new Error("Only images and PDF files are allowed"), false);
   }
 });
 
-// --- In-memory Vault Store ---
-let vaultItems = [];
+// ===== Health Check =====
+app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date().toISOString() }));
 
-// --- Health Check ---
-app.get('/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Server is running', timestamp: new Date().toISOString() });
-});
+// ===== Static Pages =====
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/dashboard.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
 
-// --- Auth (Simulated) ---
-app.post('/api/auth/login', (req, res) => {
-  res.json({
-    token: 'simulated-jwt-token',
-    user: { id: 1, username: 'testuser', email: 'test@example.com', isSubscribed: true }
-  });
-});
-
-app.post('/api/auth/register', (req, res) => {
-  res.json({
-    token: 'simulated-jwt-token',
-    user: { id: 1, username: 'testuser', email: 'test@example.com', isSubscribed: true }
-  });
-});
-
-app.get('/api/auth/user', (req, res) => {
-  res.json({ id: 1, username: 'testuser', email: 'test@example.com', isSubscribed: true });
-});
-
-// --- Vault Upload ---
-app.post('/api/vault/upload', upload.single('document'), (req, res) => {
+// ===== Vault Upload =====
+app.post('/api/vault/upload', authMiddleware, upload.single('document'), (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ status: 'error', message: 'No file uploaded' });
+      return res.status(400).json({ message: 'No file uploaded', status: 'error' });
     }
 
-    const { nomineeName, nomineeRel } = req.body;
-
-    const newItem = {
-      id: Date.now(),
-      originalName: req.file.originalname,
-      fileSize: req.file.size,
-      fileType: req.file.mimetype,
-      ocrStatus: 'processing',
-      isProcessed: false,
-      createdAt: new Date(),
-      extractedText: null,
-      nominee: {
-        name: nomineeName || '',
-        relationship: nomineeRel || ''
-      }
-    };
-
-    vaultItems.push(newItem);
-
     res.json({
-      status: 'success',
       message: 'File uploaded successfully! OCR processing started.',
-      item: newItem
+      status: 'success',
+      file: { name: req.file.originalname, size: req.file.size, type: req.file.mimetype }
     });
   } catch (error) {
     console.error('Upload error:', error);
-    res.status(500).json({ status: 'error', message: 'Server error during upload' });
+    res.status(500).json({ message: 'Server error during upload', status: 'error' });
   }
 });
 
-// --- Vault Items ---
-app.get('/api/vault/items', (req, res) => {
-  res.json(vaultItems);
+// ===== Vault Items (Mock) =====
+app.get('/api/vault/items', authMiddleware, (req, res) => {
+  res.json([
+    {
+      id: 1,
+      originalName: 'sample-document.pdf',
+      fileSize: 1024,
+      ocrStatus: 'completed',
+      isProcessed: true,
+      createdAt: new Date().toISOString(),
+      extractedText: 'This is simulated OCR text.'
+    }
+  ]);
 });
 
-// --- Serve Pages ---
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-app.get('/dashboard.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-});
-
-// --- Start Server ---
+// ===== Start Server =====
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`🌐 Health: http://localhost:${PORT}/health`);
 });
-
-// --- Error Handling ---
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
-});
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection:', promise, 'reason:', reason);
-});
-
-module.exports = app;
