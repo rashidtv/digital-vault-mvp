@@ -22,7 +22,9 @@
           <li class="nav-item"><a class="nav-link" href="#pricing">Pricing</a></li>
           <li class="nav-item"><a class="nav-link" href="#faq">FAQ</a></li>
         </ul>
-        <a href="/dashboard.html" class="btn btn-primary ms-3">Sign In</a>
+        <button class="btn btn-primary ms-3" data-bs-toggle="modal" data-bs-target="#authModal">
+          <i class="bi bi-box-arrow-in-right"></i> Sign In
+        </button>
       </div>
     </div>
   </nav>
@@ -32,9 +34,9 @@
     <div class="container">
       <h1 class="display-4 fw-bold">Your Legacy, Secured in the Digital Vault</h1>
       <p class="lead mt-3">Store property grants, wills, and important documents safely with one trusted platform.</p>
-      <a href="/dashboard.html" class="btn btn-lg btn-primary mt-4">
+      <button class="btn btn-lg btn-primary mt-4" data-bs-toggle="modal" data-bs-target="#authModal">
         <i class="bi bi-box-arrow-in-right"></i> Get Started Now
-      </a>
+      </button>
     </div>
   </header>
 
@@ -81,7 +83,7 @@
                 <li>OCR for IDs</li>
                 <li>1 Nominee</li>
               </ul>
-              <a href="/dashboard.html" class="btn btn-outline-primary">Start Free Trial</a>
+              <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#authModal">Start Free Trial</button>
             </div>
           </div>
         </div>
@@ -96,7 +98,7 @@
                 <li>Multiple Nominees</li>
                 <li>Priority Support</li>
               </ul>
-              <a href="/dashboard.html" class="btn btn-success">Go Premium</a>
+              <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#authModal">Go Premium</button>
             </div>
           </div>
         </div>
@@ -142,6 +144,80 @@
     <p class="mb-0">&copy; 2025 Digital Vault. All rights reserved.</p>
   </footer>
 
+  <!-- Login / Signup Modal -->
+  <div class="modal fade" id="authModal" tabindex="-1" aria-labelledby="authModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content shadow-lg">
+        <div class="modal-header">
+          <h5 class="modal-title" id="authModalLabel">Welcome Back</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <!-- Login Form -->
+          <form id="loginForm">
+            <div class="mb-3">
+              <label for="loginEmail" class="form-label">Email</label>
+              <input type="email" id="loginEmail" class="form-control" required>
+            </div>
+            <div class="mb-3">
+              <label for="loginPassword" class="form-label">Password</label>
+              <input type="password" id="loginPassword" class="form-control" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Sign In</button>
+          </form>
+
+          <!-- Divider -->
+          <div class="text-center my-3">
+            <span class="text-muted">or</span>
+          </div>
+
+          <!-- Signup Link -->
+          <p class="text-center">
+            Don’t have an account? 
+            <a href="#" id="showSignup">Sign up here</a>
+          </p>
+
+          <!-- Signup Form (hidden initially) -->
+          <form id="signupForm" class="d-none">
+            <div class="mb-3">
+              <label for="signupName" class="form-label">Full Name</label>
+              <input type="text" id="signupName" class="form-control" required>
+            </div>
+            <div class="mb-3">
+              <label for="signupEmail" class="form-label">Email</label>
+              <input type="email" id="signupEmail" class="form-control" required>
+            </div>
+            <div class="mb-3">
+              <label for="signupPassword" class="form-label">Password</label>
+              <input type="password" id="signupPassword" class="form-control" required>
+            </div>
+            <button type="submit" class="btn btn-success w-100">Create Account</button>
+            <p class="text-center mt-3">
+              Already have an account? 
+              <a href="#" id="showLogin">Sign in</a>
+            </p>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Toggle between login & signup forms
+    document.getElementById("showSignup")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      document.getElementById("loginForm").classList.add("d-none");
+      document.getElementById("signupForm").classList.remove("d-none");
+      document.getElementById("authModalLabel").innerText = "Create an Account";
+    });
+
+    document.getElementById("showLogin")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      document.getElementById("signupForm").classList.add("d-none");
+      document.getElementById("loginForm").classList.remove("d-none");
+      document.getElementById("authModalLabel").innerText = "Welcome Back";
+    });
+  </script>
 </body>
 </html>
