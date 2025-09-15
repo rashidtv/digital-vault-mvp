@@ -1,129 +1,103 @@
-console.log("✅ Dashboard JS loaded");
+console.log('✅ Dashboard JS loaded');
 
 // DOM Elements
-const uploadForm = document.getElementById("uploadForm");
-const fileInput = document.getElementById("document");
-const uploadButton = document.getElementById("uploadButton");
-const uploadSpinner = document.getElementById("uploadSpinner");
-const uploadStatus = document.getElementById("uploadStatus");
-const vaultItems = document.getElementById("vaultItems");
-const itemsCount = document.getElementById("itemsCount");
-const logoutBtn = document.getElementById("logoutBtn");
-const welcomeUser = document.getElementById("welcomeUser");
+const uploadForm = document.getElementById('uploadForm');
+const uploadStatus = document.getElementById('uploadStatus');
+const vaultItemsContainer = document.getElementById('vaultItems');
+const fileInput = document.getElementById('document');
 
-// Token
-const token = localStorage.getItem("token");
-if (!token) {
-  window.location.href = "/";
+// Token check
+const dashboardToken = localStorage.getItem('token');
+console.log('✅ Token found:', !!dashboardToken);
+
+if (!dashboardToken) {
+  console.log('❌ No token, redirecting...');
+  window.location.href = '/';
+} else {
+  initializeUploadHandler();
+  loadVaultItems();
 }
 
-// Fetch logged in user
-async function fetchUser() {
-  try {
-    const res = await fetch("/api/auth/user", {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (res.ok) {
-      const user = await res.json();
-      welcomeUser.textContent = `Welcome, ${user.username}`;
-    } else {
-      console.warn("User fetch failed");
+// Initialize upload form
+function initializeUploadHandler() {
+  uploadForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const file = fileInput.files[0];
+    if (!file) {
+      showUploadStatus('Please select a file first', 'danger');
+      return;
     }
-  } catch (err) {
-    console.error("User fetch error:", err);
-  }
+
+    const formData = new FormData();
+    formData.append('document', file);
+
+    setUploadLoading(true);
+    showUploadStatus('Uploading and processing...', 'info');
+
+    try {
+      const response = await fetch('/api/vault/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${dashboardToken}`
+        },
+        body: formData
+      });
+
+      const data = await response.json();
+      console.log('Upload response:', data);
+
+      if (response.ok && data.status === 'success') {
+        showUploadStatus('✅ ' + data.message, 'success');
+        resetUploadForm();
+
+        // Insert new item immediately
+        if (data.item) {
+          vaultItemsContainer.insertAdjacentHTML('afterbegin', renderVaultItem(data.item));
+        }
+
+        loadVaultItems(); // refresh from API
+      } else {
+        showUploadStatus('❌ ' + (data.message || 'Upload failed'), 'danger');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      showUploadStatus('❌ Error: ' + error.message, 'danger');
+    } finally {
+      setUploadLoading(false);
+    }
+  });
 }
 
-// Logout
-logoutBtn.addEventListener("click", () => {
-  localStorage.removeItem("token");
-  window.location.href = "/";
-});
-
-// Upload handler
-uploadForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-
-  const file = fileInput.files[0];
-  if (!file) {
-    showUploadStatus("Please select a file", "danger");
-    return;
-  }
-
-  const allowedTypes = ["image/jpeg", "image/png", "application/pdf", "image/webp"];
-  if (!allowedTypes.includes(file.type)) {
-    showUploadStatus("Invalid file type. Use JPG, PNG, PDF, or WEBP", "danger");
-    return;
-  }
-
-  if (file.size > 10 * 1024 * 1024) {
-    showUploadStatus("File too large (max 10MB)", "danger");
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append("document", file);
-
-  setUploadLoading(true);
-  showUploadStatus("Uploading & processing...", "info");
-
-  try {
-    const res = await fetch("/api/vault/upload", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-      body: formData
-    });
-
-    const data = await res.json();
-    console.log("Upload response:", data);
-
-    if (res.ok && data.status === "success") {
-      showUploadStatus("✅ " + data.message, "success");
-      resetUploadForm();
-      await loadVaultItems();
-    } else {
-      showUploadStatus("❌ " + (data.message || "Upload failed"), "danger");
-    }
-  } catch (err) {
-    console.error("Upload error:", err);
-    showUploadStatus("🚨 Server error: " + err.message, "danger");
-  } finally {
-    setUploadLoading(false);
-  }
-});
-
-// Reset form
+// Reset upload form
 function resetUploadForm() {
-  fileInput.value = "";
-  document.getElementById("fileInfo").style.display = "none";
-  uploadButton.disabled = true;
+  fileInput.value = '';
+  const fileInfo = document.getElementById('fileInfo');
+  if (fileInfo) fileInfo.style.display = 'none';
 }
 
-// Trigger file input
-function triggerFileInput() {
-  fileInput.click();
+// Render vault item
+function renderVaultItem(item) {
+  return `
+    <div class="card mb-3 vault-item">
+      <div class="card-body">
+        <h6 class="card-title">
+          <i class="bi bi-file-earmark-${item.fileType.includes('pdf') ? 'pdf' : 'image'} me-2"></i>
+          ${item.originalName}
+        </h6>
+        <p class="mb-1">
+          <small>Uploaded: ${new Date(item.createdAt).toLocaleString()}</small>
+        </p>
+        <p>
+          <span class="badge bg-${getStatusColor(item.ocrStatus)}">${item.ocrStatus}</span>
+        </p>
+      </div>
+    </div>
+  `;
 }
 
-// Handle file select
-function handleFileSelect(input) {
-  const file = input.files[0];
-  if (file) {
-    document.getElementById("fileName").textContent = file.name;
-    document.getElementById("fileSize").textContent = formatFileSize(file.size);
-    document.getElementById("fileInfo").style.display = "block";
-    uploadButton.disabled = false;
-  }
-}
-
-// Clear file
-function clearFile() {
-  fileInput.value = "";
-  document.getElementById("fileInfo").style.display = "none";
-  uploadButton.disabled = true;
-}
-
-// Status messages
-function showUploadStatus(message, type = "info") {
+// Show upload status
+function showUploadStatus(message, type = 'info') {
   uploadStatus.innerHTML = `
     <div class="alert alert-${type} alert-dismissible fade show">
       ${message}
@@ -132,85 +106,56 @@ function showUploadStatus(message, type = "info") {
   `;
 }
 
-// Upload button state
+// Upload loading state
 function setUploadLoading(isLoading) {
+  const button = document.getElementById('uploadButton');
+  const spinner = document.getElementById('uploadSpinner');
+  
   if (isLoading) {
-    uploadButton.disabled = true;
-    uploadButton.querySelector(".upload-text").textContent = "Processing...";
-    uploadSpinner.classList.remove("d-none");
+    button.disabled = true;
+    button.innerHTML = 'Processing... <span id="uploadSpinner" class="spinner-border spinner-border-sm"></span>';
   } else {
-    uploadButton.disabled = false;
-    uploadButton.querySelector(".upload-text").textContent = "Upload & Process Document";
-    uploadSpinner.classList.add("d-none");
+    button.disabled = false;
+    button.innerHTML = 'Upload & Process Document';
   }
-}
-
-// Format file size
-function formatFileSize(bytes) {
-  if (bytes === 0) return "0 Bytes";
-  const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 }
 
 // Load vault items
 async function loadVaultItems() {
   try {
-    const res = await fetch("/api/vault/items", {
-      headers: { Authorization: `Bearer ${token}` }
+    const response = await fetch('/api/vault/items', {
+      headers: { 'Authorization': `Bearer ${dashboardToken}` }
     });
-
-    if (!res.ok) {
-      throw new Error("Failed to fetch vault items");
-    }
-
-    const items = await res.json();
+    const items = await response.json();
     displayVaultItems(items);
-  } catch (err) {
-    console.error("Error loading vault items:", err);
-    vaultItems.innerHTML = `<div class="alert alert-danger">Error loading documents.</div>`;
+  } catch (error) {
+    console.error('Error loading items:', error);
+    vaultItemsContainer.innerHTML = `
+      <div class="alert alert-danger">Error loading documents.</div>
+    `;
   }
 }
 
 // Display vault items
 function displayVaultItems(items) {
-  itemsCount.textContent = items.length;
-  if (items.length === 0) {
-    vaultItems.innerHTML = `<div class="text-muted">No documents uploaded yet.</div>`;
+  if (!items.length) {
+    vaultItemsContainer.innerHTML = `
+      <div class="text-center py-4 text-muted">
+        No documents uploaded yet.
+      </div>
+    `;
     return;
   }
-
-  vaultItems.innerHTML = items
-    .map(
-      (item) => `
-      <div class="card mb-3">
-        <div class="card-body d-flex justify-content-between">
-          <div>
-            <h6 class="mb-1">${item.originalName}</h6>
-            <small class="text-muted">${formatFileSize(item.fileSize)} | ${new Date(item.createdAt).toLocaleString()}</small>
-          </div>
-          <span class="badge bg-${getStatusColor(item.ocrStatus)}">${item.ocrStatus}</span>
-        </div>
-      </div>
-    `
-    )
-    .join("");
+  vaultItemsContainer.innerHTML = items.map(renderVaultItem).join('');
 }
 
 // Status colors
 function getStatusColor(status) {
   const colors = {
-    completed: "success",
-    processing: "warning",
-    pending: "secondary",
-    failed: "danger"
+    'completed': 'success',
+    'processing': 'warning',
+    'pending': 'secondary',
+    'failed': 'danger'
   };
-  return colors[status] || "secondary";
+  return colors[status] || 'secondary';
 }
-
-// Init
-document.addEventListener("DOMContentLoaded", () => {
-  fetchUser();
-  loadVaultItems();
-});
