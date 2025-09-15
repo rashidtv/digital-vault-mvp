@@ -206,3 +206,9 @@ function getStatusColor(status) {
   };
   return colors[status] || "secondary";
 }
+// Logout functionality
+document.getElementById("logoutBtn")?.addEventListener("click", () => {
+  console.log("🔒 Logging out...");
+  localStorage.removeItem("token"); // Clear stored token
+  window.location.href = "/"; // Redirect to landing page
+});
