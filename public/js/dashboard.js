@@ -18,7 +18,7 @@ if (!dashboardToken) {
   loadVaultItems();
 }
 
-// Initialize upload form
+// ------------------- Upload Handling -------------------
 function initializeUploadHandler() {
   uploadForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -51,12 +51,11 @@ function initializeUploadHandler() {
         showUploadStatus('✅ ' + data.message, 'success');
         resetUploadForm();
 
-        // Insert new item immediately
         if (data.item) {
           vaultItemsContainer.insertAdjacentHTML('afterbegin', renderVaultItem(data.item));
         }
 
-        loadVaultItems(); // refresh from API
+        loadVaultItems(); // refresh from server
       } else {
         showUploadStatus('❌ ' + (data.message || 'Upload failed'), 'danger');
       }
@@ -69,58 +68,37 @@ function initializeUploadHandler() {
   });
 }
 
-// Reset upload form
-function resetUploadForm() {
-  fileInput.value = '';
+// ------------------- File Input Helpers -------------------
+function triggerFileInput() {
+  fileInput.click();
+}
+
+function handleFileSelect(input) {
+  const file = input.files[0];
   const fileInfo = document.getElementById('fileInfo');
-  if (fileInfo) fileInfo.style.display = 'none';
-}
+  const uploadButton = document.getElementById('uploadButton');
 
-// Render vault item
-function renderVaultItem(item) {
-  return `
-    <div class="card mb-3 vault-item">
-      <div class="card-body">
-        <h6 class="card-title">
-          <i class="bi bi-file-earmark-${item.fileType.includes('pdf') ? 'pdf' : 'image'} me-2"></i>
-          ${item.originalName}
-        </h6>
-        <p class="mb-1">
-          <small>Uploaded: ${new Date(item.createdAt).toLocaleString()}</small>
-        </p>
-        <p>
-          <span class="badge bg-${getStatusColor(item.ocrStatus)}">${item.ocrStatus}</span>
-        </p>
-      </div>
-    </div>
-  `;
-}
-
-// Show upload status
-function showUploadStatus(message, type = 'info') {
-  uploadStatus.innerHTML = `
-    <div class="alert alert-${type} alert-dismissible fade show">
-      ${message}
-      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-  `;
-}
-
-// Upload loading state
-function setUploadLoading(isLoading) {
-  const button = document.getElementById('uploadButton');
-  const spinner = document.getElementById('uploadSpinner');
-  
-  if (isLoading) {
-    button.disabled = true;
-    button.innerHTML = 'Processing... <span id="uploadSpinner" class="spinner-border spinner-border-sm"></span>';
-  } else {
-    button.disabled = false;
-    button.innerHTML = 'Upload & Process Document';
+  if (file) {
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileSize').textContent = formatFileSize(file.size);
+    fileInfo.style.display = 'block';
+    uploadButton.disabled = false;
   }
 }
 
-// Load vault items
+function clearFile() {
+  fileInput.value = '';
+  const fileInfo = document.getElementById('fileInfo');
+  const uploadButton = document.getElementById('uploadButton');
+  fileInfo.style.display = 'none';
+  uploadButton.disabled = true;
+}
+
+function resetUploadForm() {
+  clearFile();
+}
+
+// ------------------- Vault Display -------------------
 async function loadVaultItems() {
   try {
     const response = await fetch('/api/vault/items', {
@@ -136,7 +114,6 @@ async function loadVaultItems() {
   }
 }
 
-// Display vault items
 function displayVaultItems(items) {
   if (!items.length) {
     vaultItemsContainer.innerHTML = `
@@ -149,7 +126,59 @@ function displayVaultItems(items) {
   vaultItemsContainer.innerHTML = items.map(renderVaultItem).join('');
 }
 
-// Status colors
+function renderVaultItem(item) {
+  const type = item.fileType || 'application/pdf'; // fallback
+  const icon = type.includes('pdf') ? 'pdf' : 'image';
+
+  return `
+    <div class="card mb-3 vault-item">
+      <div class="card-body">
+        <h6 class="card-title">
+          <i class="bi bi-file-earmark-${icon} me-2"></i>
+          ${item.originalName || 'Untitled Document'}
+        </h6>
+        <p class="mb-1">
+          <small>Uploaded: ${new Date(item.createdAt).toLocaleString()}</small>
+        </p>
+        <p>
+          <span class="badge bg-${getStatusColor(item.ocrStatus || 'pending')}">
+            ${item.ocrStatus || 'pending'}
+          </span>
+        </p>
+      </div>
+    </div>
+  `;
+}
+
+// ------------------- Utils -------------------
+function showUploadStatus(message, type = 'info') {
+  uploadStatus.innerHTML = `
+    <div class="alert alert-${type} alert-dismissible fade show">
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  `;
+}
+
+function setUploadLoading(isLoading) {
+  const button = document.getElementById('uploadButton');
+  if (isLoading) {
+    button.disabled = true;
+    button.innerHTML = 'Processing... <span id="uploadSpinner" class="spinner-border spinner-border-sm"></span>';
+  } else {
+    button.disabled = false;
+    button.innerHTML = '<span class="upload-text">Upload & Process Document</span>';
+  }
+}
+
+function formatFileSize(bytes) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
 function getStatusColor(status) {
   const colors = {
     'completed': 'success',

@@ -131,19 +131,87 @@ app.get("/api/auth/user", authMiddleware, async (req, res) => {
   }
 });
 
-// ===== File Upload Config =====
-const storage = multer.memoryStorage();
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + '-' + file.originalname);
+  }
+});
+
 const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|pdf|webp/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
-    if (mimetype && extname) return cb(null, true);
-    cb(new Error("Only images and PDF files are allowed"), false);
+
+    if (mimetype && extname) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only images and PDF files are allowed'), false);
+    }
   }
 });
+
+// In-memory vault (MVP only, later DB)
+let vaultItems = [];
+
+// Upload endpoint
+app.post('/api/vault/upload', upload.single('document'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        message: 'No file uploaded. Please select a file.',
+        status: 'error'
+      });
+    }
+
+    const newItem = {
+      id: Date.now().toString(),
+      originalName: req.file.originalname,
+      fileName: req.file.filename,
+      filePath: '/uploads/' + req.file.filename, // public URL
+      fileSize: req.file.size,
+      fileType: req.file.mimetype,
+      ocrStatus: 'processing',
+      isProcessed: false,
+      createdAt: new Date().toISOString(),
+      extractedText: ''
+    };
+
+    vaultItems.push(newItem);
+
+    res.json({
+      message: 'File uploaded successfully!',
+      status: 'success',
+      item: newItem
+    });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({
+      message: 'Server error during upload',
+      status: 'error'
+    });
+  }
+});
+
+// Serve uploaded files statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Fetch all vault items
+app.get('/api/vault/items', (req, res) => {
+  res.json(vaultItems);
+});
+
 
 // ===== Health Check =====
 app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date().toISOString() }));
