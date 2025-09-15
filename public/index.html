@@ -203,21 +203,79 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    // Toggle between login & signup forms
-    document.getElementById("showSignup")?.addEventListener("click", (e) => {
-      e.preventDefault();
-      document.getElementById("loginForm").classList.add("d-none");
-      document.getElementById("signupForm").classList.remove("d-none");
-      document.getElementById("authModalLabel").innerText = "Create an Account";
-    });
+<script>
+  const API_BASE = window.location.origin; // works for localhost & Render
 
-    document.getElementById("showLogin")?.addEventListener("click", (e) => {
-      e.preventDefault();
-      document.getElementById("signupForm").classList.add("d-none");
-      document.getElementById("loginForm").classList.remove("d-none");
-      document.getElementById("authModalLabel").innerText = "Welcome Back";
-    });
-  </script>
+  // Toggle between login & signup forms
+  document.getElementById("showSignup")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    document.getElementById("loginForm").classList.add("d-none");
+    document.getElementById("signupForm").classList.remove("d-none");
+    document.getElementById("authModalLabel").innerText = "Create an Account";
+  });
+
+  document.getElementById("showLogin")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    document.getElementById("signupForm").classList.add("d-none");
+    document.getElementById("loginForm").classList.remove("d-none");
+    document.getElementById("authModalLabel").innerText = "Welcome Back";
+  });
+
+  // Handle Login
+  document.getElementById("loginForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("loginEmail").value;
+    const password = document.getElementById("loginPassword").value;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.token) {
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        window.location.href = "/dashboard.html";
+      } else {
+        alert("❌ Login failed: " + (data.message || "Invalid credentials"));
+      }
+    } catch (err) {
+      console.error("Login error:", err);
+      alert("🚨 Network error during login.");
+    }
+  });
+
+  // Handle Signup
+  document.getElementById("signupForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = document.getElementById("signupName").value;
+    const email = document.getElementById("signupEmail").value;
+    const password = document.getElementById("signupPassword").value;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.token) {
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        window.location.href = "/dashboard.html";
+      } else {
+        alert("❌ Signup failed: " + (data.message || "Error creating account"));
+      }
+    } catch (err) {
+      console.error("Signup error:", err);
+      alert("🚨 Network error during signup.");
+    }
+  });
+</script>
+
 </body>
 </html>
