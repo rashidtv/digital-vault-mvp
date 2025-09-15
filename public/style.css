@@ -1,186 +1,124 @@
-/* ==========================
-   Base Styles
-========================== */
+/* General Reset */
 body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background-color: #f8f9fa;
-  color: #212529;
-  line-height: 1.6;
+  font-family: "Inter", "Segoe UI", Roboto, sans-serif;
+  background-color: #f9fafb;
+  color: #333;
+  margin: 0;
+  padding: 0;
 }
 
-h1, h2, h3, h4, h5 {
-  font-weight: 600;
-}
-
-a {
-  text-decoration: none;
-}
-
-/* ==========================
-   Navbar
-========================== */
+/* Navbar */
 .navbar {
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(90deg, #2c3e50, #4ca1af);
+  padding: 0.75rem 1.5rem;
 }
 
 .navbar-brand {
-  font-size: 1.3rem;
-  letter-spacing: 0.5px;
+  font-weight: 700;
+  color: #fff !important;
+  font-size: 1.25rem;
 }
 
-/* ==========================
-   Hero Section
-========================== */
-.hero-section {
-  height: 100vh;
-  background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)),
-              url("https://images.unsplash.com/photo-1581090700227-4c4d04dfba2f?auto=format&fit=crop&w=1600&q=80")
-              center/cover no-repeat;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+.nav-link {
+  color: #fff !important;
+  margin-right: 1rem;
+  transition: 0.3s;
+}
+.nav-link:hover {
+  color: #ffd369 !important;
+}
+
+/* Dashboard Container */
+.container-dashboard {
+  max-width: 1000px;
+  margin: 2rem auto;
+  padding: 1rem;
+}
+
+/* Upload Area */
+#uploadArea {
+  border: 2px dashed #6c757d;
+  border-radius: 10px;
+  padding: 2rem;
   text-align: center;
-  padding: 0 15px;
-}
-
-.hero-section h1 {
-  font-size: 2.8rem;
-}
-
-.hero-section p {
-  font-size: 1.2rem;
-  margin-top: 15px;
-}
-
-.hero-section .btn {
-  padding: 12px 28px;
-  font-size: 1.1rem;
-  border-radius: 30px;
+  background: #f8f9fa;
   transition: all 0.3s ease;
 }
 
-.hero-section .btn:hover {
-  transform: translateY(-3px);
-}
-
-/* ==========================
-   Features
-========================== */
-#features i {
-  color: #0d6efd;
-  transition: transform 0.3s ease;
-}
-
-#features i:hover {
-  transform: scale(1.2);
-}
-
-/* ==========================
-   Pricing Cards
-========================== */
-#pricing .card {
-  border-radius: 12px;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-#pricing .card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
-}
-
-#pricing h3 {
-  color: #0d6efd;
-}
-
-/* ==========================
-   FAQ Section
-========================== */
-#faq .accordion-button {
-  font-weight: 500;
-}
-
-#faq .accordion-button:not(.collapsed) {
-  background-color: #e7f1ff;
-  color: #0d6efd;
-}
-
-/* ==========================
-   Footer
-========================== */
-footer {
-  font-size: 0.9rem;
-  background-color: #212529;
-}
-
-/* ==========================
-   Dashboard Styles
-========================== */
-.sidebar {
-  height: 100vh;
-  position: fixed;
-  top: 56px;
-  left: 0;
-  padding-top: 1rem;
-  border-right: 1px solid #dee2e6;
-}
-
-.sidebar .nav-link {
-  color: #495057;
-  font-weight: 500;
-  padding: 0.6rem 1rem;
-  border-radius: 4px;
-}
-
-.sidebar .nav-link:hover,
-.sidebar .nav-link.active {
-  background-color: #e9ecef;
-  color: #0d6efd;
-}
-
-main {
-  margin-left: 240px;
-}
-
-@media (max-width: 768px) {
-  .sidebar {
-    position: relative;
-    height: auto;
-    border-right: none;
-  }
-  main {
-    margin-left: 0;
-  }
-}
-
-/* Upload area */
-#uploadArea {
-  border: 2px dashed #0d6efd;
-  background-color: #f1f8ff;
-  transition: all 0.3s ease-in-out;
-}
-
 #uploadArea:hover {
-  background-color: #e7f1ff;
-  border-color: #0a58ca;
+  border-color: #4ca1af;
+  background: #eef7f9;
 }
 
+/* File Info */
 #fileInfo {
-  background-color: #f8f9fa;
-  border: 1px solid #dee2e6;
-  padding: 0.75rem;
-  border-radius: 5px;
+  display: none;
+  margin-top: 1rem;
 }
 
-/* Vault cards */
-.vault-item {
-  transition: transform 0.2s ease-in-out;
+#fileName {
+  font-weight: 600;
 }
 
-.vault-item:hover {
+#fileSize {
+  color: #6c757d;
+  font-size: 0.9rem;
+}
+
+/* Upload Button */
+#uploadButton {
+  background: #4ca1af;
+  color: #fff;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#uploadButton:hover {
+  background: #357f89;
+}
+
+#uploadSpinner {
+  margin-left: 0.5rem;
+}
+
+/* Vault Items */
+.vault-item .card {
+  border: 1px solid #e1e5ea;
+  border-radius: 10px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.vault-item .card:hover {
   transform: translateY(-3px);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.08);
+}
+
+.card-title {
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 .status-badge {
   font-size: 0.75rem;
-  padding: 0.35em 0.65em;
+  padding: 0.35rem 0.6rem;
+  border-radius: 20px;
+}
+
+/* Alerts */
+.alert {
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+/* Footer */
+.footer {
+  margin-top: 2rem;
+  text-align: center;
+  color: #6c757d;
+  font-size: 0.85rem;
 }
