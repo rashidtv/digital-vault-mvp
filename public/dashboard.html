@@ -1,146 +1,54 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - SecureVault</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <meta charset="UTF-8">
+  <title>Digital Vault Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container">
-            <a class="navbar-brand" href="#">SecureVault</a>
-            <div>
-                <span class="navbar-text me-3" id="authStatus">Checking authentication...</span>
-                <button class="btn btn-outline-light" id="logoutBtn">Logout</button>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container my-5">
-        <h1>Welcome to Your Dashboard</h1>
-        <div id="userInfo" class="alert alert-info">Loading user information...</div>
-        
-        <div class="alert alert-warning" id="tempAuthWarning" style="display: none;">
-            <strong>Note:</strong> Using temporary authentication. Data will be lost when the server restarts.
-            <br>To enable permanent storage, configure MongoDB Atlas connection.
-        </div>
-      <!-- Update your upload form section -->
-<div class="card mb-4">
-    <div class="card-header bg-primary text-white">
-        <h5 class="mb-0">📁 Upload Property Grant Document</h5>
+  <nav class="navbar navbar-dark bg-dark">
+    <div class="container-fluid">
+      <span class="navbar-brand">Digital Vault</span>
+      <button class="btn btn-outline-light" onclick="logout()">Logout</button>
     </div>
-    <div class="card-body">
-        <form id="uploadForm" enctype="multipart/form-data" onsubmit="return validateForm()">
-            <div class="upload-area mb-3" id="uploadArea">
-                <i class="bi bi-cloud-upload" style="font-size: 2rem; color: #6c757d;"></i>
-                <h6>Drag & drop your file here or click to browse</h6>
-                <p class="text-muted">Supported formats: JPG, PNG, PDF, WEBP</p>
-                <p class="text-muted">Max file size: 10MB</p>
-                <input class="form-control d-none" type="file" id="document" name="document" 
-                       accept=".jpg,.jpeg,.png,.pdf,.webp" required 
-                       onchange="handleFileSelect(this)">
-                <button type="button" class="btn btn-outline-primary mt-2" onclick="triggerFileInput()">
-                    Choose File
-                </button>
-            </div>
-            <div id="fileInfo" class="mb-3" style="display: none;">
-                <strong>Selected file:</strong> <span id="fileName"></span> (<span id="fileSize"></span>)
-                <button type="button" class="btn btn-sm btn-outline-danger ms-2" onclick="clearFile()">
-                    <i class="bi bi-x"></i> Remove
-                </button>
-            </div>
-            <button type="submit" class="btn btn-primary w-100" id="uploadButton" disabled>
-                <span class="upload-text">Upload & Process Document</span>
-                <span class="spinner-border spinner-border-sm d-none" id="uploadSpinner"></span>
-            </button>
-        </form>
-        <div id="uploadStatus" class="mt-3"></div>
-    </div>
-</div>
+  </nav>
 
-        <div class="card">
-            <div class="card-header">
-                <h5>Next Features Coming Soon</h5>
-            </div>
-            <div class="card-body">
-                <ul>
-                    <li>Upload Property Grant-In Progress</li>
-                    <li>Digital vault card generation</li>
-                    <li>Nominee sharing functionality</li>
-                    <li>Secure document storage</li>
-                </ul>
-            </div>
+  <main class="container py-4">
+    <h3 class="mb-3">Upload Property Grant & Nominee</h3>
+
+    <form id="uploadForm" enctype="multipart/form-data" class="mb-4">
+      <div class="mb-3" id="uploadArea">
+        <button type="button" class="btn btn-secondary" onclick="triggerFileInput()">Choose File</button>
+        <input type="file" id="document" name="document" style="display:none" onchange="handleFileSelect(this)">
+        <div id="fileInfo" class="mt-2" style="display:none;">
+          <p><strong>File:</strong> <span id="fileName"></span> (<span id="fileSize"></span>)</p>
+          <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearFile()">Clear</button>
         </div>
+      </div>
 
-        <div class="mt-3">
-            <button class="btn btn-primary" id="logoutBtnBottom">Logout & Return Home</button>
-        </div>
-    </div>
+      <div class="mb-3">
+        <label for="nomineeName" class="form-label">Nominee Name</label>
+        <input type="text" class="form-control" id="nomineeName" name="nomineeName" required>
+      </div>
 
-    <script>
-        // Check authentication status first
-        fetch('/api/auth/status')
-            .then(response => response.json())
-            .then(status => {
-                document.getElementById('authStatus').textContent = status.status;
-                if (!status.usingMongoDB) {
-                    document.getElementById('tempAuthWarning').style.display = 'block';
-                }
-            });
+      <div class="mb-3">
+        <label for="nomineeRel" class="form-label">Nominee Relationship</label>
+        <input type="text" class="form-control" id="nomineeRel" name="nomineeRel" required>
+      </div>
 
-        // Check if user is logged in
-        const token = localStorage.getItem('token');
-        if (!token) {
-            window.location.href = '/';
-        }
+      <button type="submit" id="uploadButton" class="btn btn-primary" disabled>
+        <span class="upload-text">Upload & Process Document</span>
+        <span id="uploadSpinner" class="spinner-border spinner-border-sm d-none"></span>
+      </button>
+    </form>
 
-        // Fetch user info
-        fetch('/api/auth/user', {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        })
-        .then(response => {
-            if (!response.ok) {
-                // Token is invalid, clear storage and redirect
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                throw new Error('Not authenticated');
-            }
-            return response.json();
-        })
-        .then(user => {
-            document.getElementById('userInfo').innerHTML = 
-                `<strong>Logged in as:</strong> ${user.username} (${user.email})<br>
-                 <strong>Subscription Status:</strong> ${user.isSubscribed ? 'Active' : 'Inactive'}`;
-        })
-        .catch(err => {
-            console.error('Auth check failed:', err);
-            window.location.href = '/';
-        });
+    <div id="uploadStatus"></div>
 
-        // Logout functionality
-        function handleLogout() {
-            // Optional: Call logout API
-            fetch('/api/auth/logout', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
-            }).catch(err => console.error('Logout API error:', err));
-            
-            // Clear local storage
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            
-            // Redirect to home
-            window.location.href = '/';
-        }
+    <h4 class="mt-5">Your Vault Items</h4>
+    <div id="vaultItems" class="mt-3"></div>
+  </main>
 
-        document.getElementById('logoutBtn').addEventListener('click', handleLogout);
-        document.getElementById('logoutBtnBottom').addEventListener('click', handleLogout);
-    </script>
-    <script src="./js/dashboard.js"></script>
+  <script src="/js/dashboard.js"></script>
 </body>
 </html>
