@@ -75,51 +75,84 @@ app.get('/dashboard.html', (req, res) => res.sendFile(path.join(__dirname, 'publ
 // =======================
 // Auth Routes
 // =======================
-app.post('/api/auth/register', (req, res) => {
-  const { email, password, name } = req.body;
-  if (users.find(u => u.email === email)) {
-    return res.status(400).json({ error: "Email already exists" });
+const bcrypt = require('bcryptjs');
+
+// Register
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { email, password, username } = req.body;
+
+    // Check if already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+
+    // Hash password before saving
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = new User({
+      email,
+      username,
+      password: hashedPassword
+    });
+
+    await user.save();
+
+    res.json({
+      token: 'simulated-jwt-token-for-testing',
+      user: { id: user._id, username: user.username, email: user.email, isSubscribed: true }
+    });
+  } catch (err) {
+    console.error("Register error:", err);
+    res.status(500).json({ message: "Server error during registration" });
   }
-
-  const newUser = {
-    id: Date.now().toString(),
-    email,
-    password,  // ⚠️ Plain text for MVP
-    name,
-    isSubscribed: true,
-    pdpaConsent: false
-  };
-
-  users.push(newUser);
-
-  const token = jwt.sign({ id: newUser.id }, JWT_SECRET, { expiresIn: "1h" });
-  res.json({ token, user: newUser });
 });
 
-app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body;
-  const user = users.find(u => u.email === email && u.password === password);
-  if (!user) return res.status(401).json({ error: "Invalid credentials" });
 
-  const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: "1h" });
-  res.json({ token, user });
+// Login
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      console.log("❌ User not found:", email);
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    let isMatch = false;
+
+    // Try bcrypt comparison
+    try {
+      isMatch = await bcrypt.compare(password, user.password);
+    } catch (err) {
+      console.warn("⚠️ bcrypt compare failed, trying plaintext match");
+    }
+
+    // Fallback: plaintext comparison (for old test users)
+    if (!isMatch && password === user.password) {
+      isMatch = true;
+    }
+
+    if (!isMatch) {
+      console.log("❌ Wrong password for:", email);
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    console.log("✅ Login success:", email);
+
+    res.json({
+      token: 'simulated-jwt-token-for-testing',
+      user: { id: user._id, username: user.username, email: user.email, isSubscribed: true }
+    });
+
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ message: "Server error during login" });
+  }
 });
 
-app.get('/api/auth/user', authMiddleware, (req, res) => {
-  const user = users.find(u => u.id === req.user.id);
-  if (!user) return res.status(404).json({ error: "User not found" });
-  res.json(user);
-});
-
-app.post("/api/auth/consent", authMiddleware, (req, res) => {
-  const user = users.find(u => u.id === req.user.id);
-  if (!user) return res.status(404).json({ error: "User not found" });
-
-  user.pdpaConsent = true;
-  user.pdpaConsentDate = new Date().toISOString();
-
-  res.json({ ok: true, message: "Consent recorded" });
-});
 
 // =======================
 // Vault Routes
