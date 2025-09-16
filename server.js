@@ -2,19 +2,21 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
 const multer = require('multer');
 const jwt = require('jsonwebtoken');
 
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
+// =======================
 // Middleware
+// =======================
 const allowedOrigins = [
   'http://localhost:5000',
   'http://localhost:3000',
   'https://digital-vault-mvp.onrender.com'
 ];
+
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
@@ -30,23 +32,15 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
-// Simulated in-memory DB
-let users = [
-  { id: "1", email: "admin@admin.com", password: "test123", name: "Admin", isSubscribed: true, pdpaConsent: false }
-];
-let vaultItems = [];
+// =======================
+// In-memory "DB"
+// =======================
+let users = [];        // { id, email, password, name, isSubscribed, pdpaConsent }
+let vaultItems = [];   // { id, userId, originalName, fileSize, fileType, createdAt }
 
-// File upload setup
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
-
-// Health check
-app.get('/health', (req, res) => res.json({ status: "OK" }));
-
-// Serve static
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-app.get('/dashboard.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
-
+// =======================
+// Auth Middleware
+// =======================
 function authMiddleware(req, res, next) {
   const authHeader = req.headers["authorization"];
   if (!authHeader) return res.status(401).json({ error: "No token" });
@@ -54,75 +48,88 @@ function authMiddleware(req, res, next) {
   const token = authHeader.split(" ")[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded; // store user info in request
+    req.user = decoded;
     next();
   } catch (err) {
     return res.status(401).json({ error: "Invalid token" });
   }
 }
 
+// =======================
+// File Upload (Multer)
+// =======================
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
 
-// Auth endpoints
-app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body;
-  const user = users.find(u => u.email === email && u.password === password);
-  if (!user) return res.status(401).json({ ok: false, error: "Invalid credentials" });
+// =======================
+// Health Check
+// =======================
+app.get('/health', (req, res) => res.json({ status: "OK" }));
 
-  const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: "1h" });
-  res.json({ token, user });
-});
+// =======================
+// Static Pages
+// =======================
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/dashboard.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
 
+// =======================
+// Auth Routes
+// =======================
 app.post('/api/auth/register', (req, res) => {
   const { email, password, name } = req.body;
-  if (users.find(u => u.email === email)) return res.status(400).json({ error: "Email already exists" });
+  if (users.find(u => u.email === email)) {
+    return res.status(400).json({ error: "Email already exists" });
+  }
 
-  const newUser = { id: Date.now().toString(), email, password, name, isSubscribed: true, pdpaConsent: false };
+  const newUser = {
+    id: Date.now().toString(),
+    email,
+    password,  // ⚠️ Plain text for MVP
+    name,
+    isSubscribed: true,
+    pdpaConsent: false
+  };
+
   users.push(newUser);
 
   const token = jwt.sign({ id: newUser.id }, JWT_SECRET, { expiresIn: "1h" });
   res.json({ token, user: newUser });
 });
 
-app.get('/api/auth/user', (req, res) => {
-  const token = req.headers["authorization"]?.split(" ")[1];
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  const user = users.find(u => u.email === email && u.password === password);
+  if (!user) return res.status(401).json({ error: "Invalid credentials" });
 
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    const user = users.find(u => u.id === decoded.id);
-    if (!user) return res.status(404).json({ error: "User not found" });
-    res.json(user);
-  } catch {
-    res.status(401).json({ error: "Invalid token" });
-  }
+  const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: "1h" });
+  res.json({ token, user });
 });
 
-// PDPA consent route
-app.post("/api/auth/consent", (req, res) => {
-  const token = req.headers["authorization"]?.split(" ")[1];
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    const user = users.find(u => u.id === decoded.id);
-    if (!user) return res.status(404).json({ error: "User not found" });
-
-    user.pdpaConsent = true;
-    user.pdpaConsentDate = new Date().toISOString();
-
-    res.json({ ok: true, message: "Consent recorded" });
-  } catch {
-    res.status(401).json({ error: "Invalid token" });
-  }
+app.get('/api/auth/user', authMiddleware, (req, res) => {
+  const user = users.find(u => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  res.json(user);
 });
 
-// Vault endpoints
+app.post("/api/auth/consent", authMiddleware, (req, res) => {
+  const user = users.find(u => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  user.pdpaConsent = true;
+  user.pdpaConsentDate = new Date().toISOString();
+
+  res.json({ ok: true, message: "Consent recorded" });
+});
+
+// =======================
+// Vault Routes
+// =======================
 app.post('/api/vault/upload', authMiddleware, upload.single('document'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
   const newItem = {
     id: Date.now().toString(),
-    userId: req.user.id,   // ✅ link file to user
+    userId: req.user.id,  // ✅ link file to logged-in user
     originalName: req.file.originalname,
     fileSize: req.file.size,
     fileType: req.file.mimetype,
@@ -130,18 +137,19 @@ app.post('/api/vault/upload', authMiddleware, upload.single('document'), (req, r
     isProcessed: false,
     createdAt: new Date().toISOString()
   };
+
   vaultItems.push(newItem);
 
   res.json({ status: "success", message: "File uploaded successfully", file: newItem });
 });
-
 
 app.get('/api/vault/items', authMiddleware, (req, res) => {
   const userItems = vaultItems.filter(item => item.userId === req.user.id);
   res.json(userItems);
 });
 
-
-// Start server
+// =======================
+// Start Server
+// =======================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running at http://localhost:${PORT}`));
