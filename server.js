@@ -148,6 +148,50 @@ app.get('/api/vault/items', authMiddleware, (req, res) => {
   res.json(userItems);
 });
 
+const QRCode = require('qrcode');
+
+// Generate Vault Card for logged-in user
+app.get('/api/vault/card', authMiddleware, async (req, res) => {
+  const user = users.find(u => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  // Ensure they gave consent + uploaded file
+  const hasFiles = vaultItems.some(item => item.userId === user.id);
+  if (!user.pdpaConsent || !hasFiles) {
+    return res.status(400).json({ error: "User not eligible for Vault Card yet" });
+  }
+
+  const vaultUrl = `https://digital-vault-mvp.onrender.com/api/vault/verify/${user.id}`;
+
+  // Generate QR code
+  const qrData = await QRCode.toDataURL(vaultUrl);
+
+  const card = {
+    vaultId: user.id,
+    name: user.name,
+    email: user.email,
+    issuedAt: new Date().toISOString(),
+    qrCode: qrData
+  };
+
+  res.json(card);
+});
+
+// Public verification endpoint
+app.get('/api/vault/verify/:userId', (req, res) => {
+  const user = users.find(u => u.id === req.params.userId);
+  if (!user) return res.status(404).json({ error: "Invalid Vault ID" });
+
+  res.json({
+    valid: true,
+    vaultId: user.id,
+    owner: user.name,
+    email: user.email,
+    filesCount: vaultItems.filter(item => item.userId === user.id).length
+  });
+});
+
+
 // =======================
 // Start Server
 // =======================
