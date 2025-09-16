@@ -47,6 +47,21 @@ app.get('/health', (req, res) => res.json({ status: "OK" }));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/dashboard.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
 
+function authMiddleware(req, res, next) {
+  const authHeader = req.headers["authorization"];
+  if (!authHeader) return res.status(401).json({ error: "No token" });
+
+  const token = authHeader.split(" ")[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded; // store user info in request
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: "Invalid token" });
+  }
+}
+
+
 // Auth endpoints
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
@@ -102,11 +117,12 @@ app.post("/api/auth/consent", (req, res) => {
 });
 
 // Vault endpoints
-app.post('/api/vault/upload', upload.single('document'), (req, res) => {
+app.post('/api/vault/upload', authMiddleware, upload.single('document'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
   const newItem = {
     id: Date.now().toString(),
+    userId: req.user.id,   // ✅ link file to user
     originalName: req.file.originalname,
     fileSize: req.file.size,
     fileType: req.file.mimetype,
@@ -119,7 +135,12 @@ app.post('/api/vault/upload', upload.single('document'), (req, res) => {
   res.json({ status: "success", message: "File uploaded successfully", file: newItem });
 });
 
-app.get('/api/vault/items', (req, res) => res.json(vaultItems));
+
+app.get('/api/vault/items', authMiddleware, (req, res) => {
+  const userItems = vaultItems.filter(item => item.userId === req.user.id);
+  res.json(userItems);
+});
+
 
 // Start server
 const PORT = process.env.PORT || 5000;
