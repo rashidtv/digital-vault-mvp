@@ -20,69 +20,81 @@ if (!dashboardToken) {
 
 // ------------------- Upload Handling -------------------
 function initializeUploadHandler() {
-  uploadForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
+ // Extend upload handler to include nominee + trustee
+uploadForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  console.log('📤 Uploading file with nominee/trustee...');
 
-    const file = fileInput.files[0];
-    if (!file) {
-      showUploadStatus('Please select a file first', 'danger');
-      return;
+  const file = fileInput.files[0];
+  if (!file) {
+    showUploadStatus('Please select a file first', 'danger');
+    return;
+  }
+
+  // Get nominee & trustee details
+  const nomineeName = document.getElementById('nomineeName').value;
+  const nomineeEmail = document.getElementById('nomineeEmail').value;
+  const nomineePhone = document.getElementById('nomineePhone').value;
+  const trusteeName = document.getElementById('trusteeName').value;
+  const trusteeEmail = document.getElementById('trusteeEmail').value;
+  const trusteePhone = document.getElementById('trusteePhone').value;
+
+  if (!nomineeName || !nomineeEmail || !nomineePhone || !trusteeName || !trusteeEmail || !trusteePhone) {
+    showUploadStatus('Please fill in nominee and trustee details', 'danger');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('document', file);
+  formData.append('nomineeName', nomineeName);
+  formData.append('nomineeEmail', nomineeEmail);
+  formData.append('nomineePhone', nomineePhone);
+  formData.append('trusteeName', trusteeName);
+  formData.append('trusteeEmail', trusteeEmail);
+  formData.append('trusteePhone', trusteePhone);
+
+  try {
+    const response = await fetch('/api/vault/upload', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${dashboardToken}` },
+      body: formData
+    });
+
+    const data = await response.json();
+    console.log('Upload response:', data);
+
+    if (response.ok && data.status === 'success') {
+      showUploadStatus('✅ ' + data.message, 'success');
+      resetUploadForm();
+      loadVaultItems();
+    } else {
+      showUploadStatus('❌ ' + (data.message || 'Upload failed'), 'danger');
     }
-
-    const formData = new FormData();
-    formData.append('document', file);
-
-    setUploadLoading(true);
-    showUploadStatus('Uploading and processing...', 'info');
-
-    try {
-      const response = await fetch('/api/vault/upload', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${dashboardToken}`
-        },
-        body: formData
-      });
-
-      const data = await response.json();
-      console.log('Upload response:', data);
-
-      if (response.ok && data.status === 'success') {
-        showUploadStatus('✅ ' + data.message, 'success');
-        resetUploadForm();
-
-        if (data.item) {
-          vaultItemsContainer.insertAdjacentHTML('afterbegin', renderVaultItem(data.item));
-        }
-
-        loadVaultItems(); // refresh from server
-      } else {
-        showUploadStatus('❌ ' + (data.message || 'Upload failed'), 'danger');
-      }
-    } catch (error) {
-      console.error('Upload error:', error);
-      showUploadStatus('❌ Error: ' + error.message, 'danger');
-    } finally {
-      setUploadLoading(false);
-    }
-  });
-}
+  } catch (error) {
+    console.error('Upload error:', error);
+    showUploadStatus('❌ Error: ' + error.message, 'danger');
+  }
+});
 
 // ------------------- File Input Helpers -------------------
 function triggerFileInput() {
   fileInput.click();
 }
 
+// Extend handleFileSelect to show nominee/trustee form
 function handleFileSelect(input) {
   const file = input.files[0];
-  const fileInfo = document.getElementById('fileInfo');
   const uploadButton = document.getElementById('uploadButton');
+  const formSection = document.getElementById('nomineeTrusteeForm');
 
   if (file) {
-    document.getElementById('fileName').textContent = file.name;
-    document.getElementById('fileSize').textContent = formatFileSize(file.size);
-    fileInfo.style.display = 'block';
+    console.log('✅ File chosen:', file.name);
+    formSection.classList.remove('d-none'); // show nominee/trustee fields
     uploadButton.disabled = false;
+  } else {
+    console.log('❌ No file chosen');
+    formSection.classList.add('d-none');
+    uploadButton.disabled = true;
   }
 }
 

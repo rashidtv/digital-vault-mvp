@@ -23,14 +23,42 @@
   <div class="container-dashboard">
     <h2 class="mb-4">📂 My Secure Vault</h2>
 
-    <!-- Upload Section -->
-    <form id="uploadForm" class="mb-4">
-      <div id="uploadArea">
-        <p class="mb-2">Upload your property grant or important document</p>
-        <button type="button" class="btn btn-secondary" onclick="triggerFileInput()">
-          <i class="bi bi-upload me-2"></i> Choose File
-        </button>
-        <input type="file" id="document" name="document" style="display:none" onchange="handleFileSelect(this)">
+<!-- File Upload Section -->
+<form id="uploadForm" class="mt-3">
+  <div class="mb-3">
+    <label for="document" class="form-label">Upload Property Grant</label>
+    <input class="form-control" type="file" id="document" name="document" onchange="handleFileSelect(this)">
+  </div>
+
+  <!-- Nominee & Trustee Section -->
+  <div id="nomineeTrusteeForm" class="card p-3 d-none">
+    <h5>Nominee & Trustee Information</h5>
+    <div class="row">
+      <div class="col-md-6">
+        <label>Nominee Name</label>
+        <input type="text" id="nomineeName" class="form-control" required>
+        <label>Nominee Email</label>
+        <input type="email" id="nomineeEmail" class="form-control" required>
+        <label>Nominee Phone</label>
+        <input type="text" id="nomineePhone" class="form-control" required>
+      </div>
+      <div class="col-md-6">
+        <label>Trustee Name</label>
+        <input type="text" id="trusteeName" class="form-control" required>
+        <label>Trustee Email</label>
+        <input type="email" id="trusteeEmail" class="form-control" required>
+        <label>Trustee Phone</label>
+        <input type="text" id="trusteePhone" class="form-control" required>
+      </div>
+    </div>
+  </div>
+
+  <button id="uploadButton" type="submit" class="btn btn-primary mt-3" disabled>
+    <span class="upload-text">Upload & Process Document</span>
+    <span id="uploadSpinner" class="spinner-border spinner-border-sm d-none"></span>
+  </button>
+</form>
+
         
         <!-- File Info -->
         <div id="fileInfo" class="mt-3">
@@ -38,16 +66,6 @@
           <p class="mb-1"><strong>Size:</strong> <span id="fileSize"></span></p>
           <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearFile()">Remove</button>
         </div>
-
-        <!-- Upload Button -->
-        <div class="mt-3">
-          <button type="submit" id="uploadButton" class="btn btn-primary" disabled>
-            <span class="upload-text">Upload & Process Document</span>
-            <span id="uploadSpinner" class="spinner-border spinner-border-sm d-none"></span>
-          </button>
-        </div>
-      </div>
-    </form>
 
     <!-- Upload Status -->
     <div id="uploadStatus" class="mb-3"></div>
