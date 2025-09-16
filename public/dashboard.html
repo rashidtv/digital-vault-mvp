@@ -27,8 +27,17 @@
     <div id="uploadStatus"></div>
 
     <!-- Vault Items -->
-    <div id="vaultItems"></div>
+<div class="mt-5">
+  <h3>Your Digital Vault Card</h3>
+  <button id="getVaultCard" class="btn btn-success mb-3">Get My Vault Card</button>
+  <div id="vaultCardContainer" class="card p-3 d-none">
+    <h5 id="cardName"></h5>
+    <p id="cardEmail"></p>
+    <p><strong>Vault ID:</strong> <span id="cardVaultId"></span></p>
+    <img id="cardQr" src="" alt="Vault QR" style="max-width:200px;">
   </div>
+</div>
+
 
   <!-- PDPA Modal -->
   <div class="modal fade" id="pdpaModal" tabindex="-1" aria-labelledby="pdpaModalLabel" aria-hidden="true">

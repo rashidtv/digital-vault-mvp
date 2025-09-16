@@ -84,3 +84,35 @@ document.getElementById("logoutBtn").addEventListener("click", () => {
   localStorage.removeItem("token");
   window.location.href = "/";
 });
+
+// Vault Card
+const getVaultCardBtn = document.getElementById('getVaultCard');
+const vaultCardContainer = document.getElementById('vaultCardContainer');
+
+if (getVaultCardBtn) {
+  getVaultCardBtn.addEventListener('click', async () => {
+    try {
+      const response = await fetch('/api/vault/card', {
+        headers: { 'Authorization': `Bearer ${dashboardToken}` }
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        showUploadStatus('❌ ' + (err.error || 'Failed to get Vault Card'), 'danger');
+        return;
+      }
+
+      const card = await response.json();
+      document.getElementById('cardName').textContent = card.name;
+      document.getElementById('cardEmail').textContent = card.email;
+      document.getElementById('cardVaultId').textContent = card.vaultId;
+      document.getElementById('cardQr').src = card.qrCode;
+
+      vaultCardContainer.classList.remove('d-none');
+    } catch (error) {
+      console.error('Error getting Vault Card:', error);
+      showUploadStatus('❌ Error getting Vault Card', 'danger');
+    }
+  });
+}
+
