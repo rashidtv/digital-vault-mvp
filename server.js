@@ -115,23 +115,31 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    console.log("🔑 Login attempt:", email);
+
     const user = await User.findOne({ email });
     if (!user) {
       console.log("❌ User not found:", email);
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
+    if (!user.password) {
+      console.error("❌ User has no password field:", user);
+      return res.status(500).json({ message: "User password not set" });
+    }
+
     let isMatch = false;
 
-    // Try bcrypt comparison
+    // Try bcrypt
     try {
       isMatch = await bcrypt.compare(password, user.password);
     } catch (err) {
-      console.warn("⚠️ bcrypt compare failed, trying plaintext match");
+      console.warn("⚠️ bcrypt compare failed:", err.message);
     }
 
-    // Fallback: plaintext comparison (for old test users)
+    // Fallback plaintext
     if (!isMatch && password === user.password) {
+      console.log("⚠️ Plaintext password matched (old user).");
       isMatch = true;
     }
 
@@ -144,12 +152,17 @@ app.post('/api/auth/login', async (req, res) => {
 
     res.json({
       token: 'simulated-jwt-token-for-testing',
-      user: { id: user._id, username: user.username, email: user.email, isSubscribed: true }
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        isSubscribed: true
+      }
     });
 
   } catch (err) {
-    console.error("Login error:", err);
-    res.status(500).json({ message: "Server error during login" });
+    console.error("🔥 Login error:", err);
+    res.status(500).json({ message: "Server error during login", error: err.message });
   }
 });
 
