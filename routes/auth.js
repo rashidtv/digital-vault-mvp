@@ -5,65 +5,42 @@ const { auth, JWT_SECRET } = require('../middleware/auth');
 
 const router = express.Router();
 
-// @route   POST /api/auth/register
-// @desc    Register a new user
+// Register
 router.post('/register', async (req, res) => {
     const { username, email, password } = req.body;
 
     try {
-        // Validate input
-        if (!username || !email || !password) {
-            return res.status(400).json({ message: 'All fields are required.' });
-        }
-
-        // Check if user already exists
+        // Check if user exists
         let user = await User.findOne({ $or: [{ email }, { username }] });
         if (user) {
-            return res.status(400).json({ message: 'User already exists with that email or username.' });
+            return res.status(400).json({ message: 'User already exists.' });
         }
 
         // Create new user
         user = new User({ username, email, password });
         await user.save();
 
-        // Create JWT payload
-        const payload = { id: user._id };
-
-        // Sign token
-        jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' }, (err, token) => {
-            if (err) {
-                console.error('JWT signing error:', err);
-                return res.status(500).json({ message: 'Server error during registration.' });
+        // Create JWT
+        const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '7d' });
+        
+        res.status(201).json({
+            token,
+            user: { 
+                id: user._id, 
+                username: user.username, 
+                email: user.email, 
+                isSubscribed: user.isSubscribed 
             }
-            
-            res.status(201).json({
-                token,
-                user: { 
-                    id: user._id, 
-                    username: user.username, 
-                    email: user.email, 
-                    isSubscribed: user.isSubscribed 
-                }
-            });
         });
 
     } catch (err) {
         console.error('Registration error:', err);
         
-        // Provide better error messages
         if (err.name === 'ValidationError') {
             const errors = Object.values(err.errors).map(e => e.message);
             return res.status(400).json({ 
                 message: 'Validation failed',
-                errors: errors 
-            });
-        }
-        
-        // Handle duplicate key errors
-        if (err.code === 11000) {
-            const field = Object.keys(err.keyValue)[0];
-            return res.status(400).json({ 
-                message: `User with this ${field} already exists.` 
+                errors 
             });
         }
         
@@ -71,18 +48,12 @@ router.post('/register', async (req, res) => {
     }
 });
 
-// @route   POST /api/auth/login
-// @desc    Login user
+// Login
 router.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
     try {
-        // Validate input
-        if (!email || !password) {
-            return res.status(400).json({ message: 'Email and password are required.' });
-        }
-
-        // Find user by email
+        // Find user
         const user = await User.findOne({ email });
         if (!user) {
             return res.status(400).json({ message: 'Invalid credentials.' });
@@ -94,25 +65,17 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ message: 'Invalid credentials.' });
         }
 
-        // Create JWT payload
-        const payload = { id: user._id };
-
-        // Sign token
-        jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' }, (err, token) => {
-            if (err) {
-                console.error('JWT signing error:', err);
-                return res.status(500).json({ message: 'Server error during login.' });
+        // Create JWT
+        const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '7d' });
+        
+        res.json({
+            token,
+            user: { 
+                id: user._id, 
+                username: user.username, 
+                email: user.email, 
+                isSubscribed: user.isSubscribed 
             }
-            
-            res.json({
-                token,
-                user: { 
-                    id: user._id, 
-                    username: user.username, 
-                    email: user.email, 
-                    isSubscribed: user.isSubscribed 
-                }
-            });
         });
 
     } catch (err) {
@@ -121,32 +84,14 @@ router.post('/login', async (req, res) => {
     }
 });
 
-// @route   GET /api/auth/user
-// @desc    Get current user data (protected route)
+// Get current user
 router.get('/user', auth, async (req, res) => {
     try {
-        res.json(req.user);
+        const user = await User.findById(req.user.id).select('-password');
+        res.json(user);
     } catch (err) {
         console.error('Get user error:', err);
-        res.status(500).json({ message: 'Server error fetching user data.' });
-    }
-});
-
-// @route   POST /api/auth/logout
-// @desc    Logout user (client-side token removal)
-// @route   POST /api/auth/logout
-// @desc    Logout user (optional server-side cleanup)
-router.post('/logout', auth, async (req, res) => {
-    try {
-        // Optional: Add token to blacklist if you want to implement token invalidation
-        // For now, we'll just acknowledge the logout
-        res.json({ 
-            message: 'Logged out successfully.',
-            timestamp: new Date().toISOString()
-        });
-    } catch (err) {
-        console.error('Logout error:', err);
-        res.status(500).json({ message: 'Server error during logout.' });
+        res.status(500).json({ message: 'Server error fetching user.' });
     }
 });
 
