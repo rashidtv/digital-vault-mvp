@@ -1,18 +1,9 @@
 const multer = require('multer');
 const path = require('path');
 
-// Configure storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
-  }
-});
+// Use memory storage instead of disk storage
+const storage = multer.memoryStorage(); // ← Changed to memory storage
 
-// File filter
 const fileFilter = (req, file, cb) => {
   const allowedTypes = /jpeg|jpg|png|pdf|webp/;
   const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
@@ -26,9 +17,9 @@ const fileFilter = (req, file, cb) => {
 };
 
 const upload = multer({
-  storage: storage,
+  storage: storage, // ← Using memory storage
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB
+    fileSize: 10 * 1024 * 1024 // 10MB limit
   },
   fileFilter: fileFilter
 });
@@ -39,7 +30,6 @@ const handleUploadError = (err, req, res, next) => {
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ message: 'File too large' });
     }
-    return res.status(400).json({ message: err.message });
   }
   next(err);
 };
